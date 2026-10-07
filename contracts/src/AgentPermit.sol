@@ -8,6 +8,7 @@ import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/Signa
 import {WebAuthn} from "@openzeppelin/contracts/utils/cryptography/WebAuthn.sol";
 import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {PasskeyRegistry} from "./PasskeyRegistry.sol";
 
 /// @title AgentPermit
@@ -19,6 +20,7 @@ import {PasskeyRegistry} from "./PasskeyRegistry.sol";
 /// Cada gasto deja un recibo (`paidAmount`) que sirve para filtrar la reputación por clientes que pagaron.
 contract AgentPermit is EIP712, Nonces, ReentrancyGuard {
     using SafeERC20 for IERC20;
+    using EnumerableSet for EnumerableSet.AddressSet;
 
     /// Límites que el usuario fija al crear un permiso.
     struct Terms {
@@ -69,6 +71,7 @@ contract AgentPermit is EIP712, Nonces, ReentrancyGuard {
     mapping(uint256 permitId => mapping(address recipient => bool)) private _allowedRecipient;
     mapping(uint256 requestId => SpendRequest) private _requests;
     mapping(address payee => mapping(address client => uint256)) private _paid;
+    mapping(address payee => EnumerableSet.AddressSet) private _payers;
 
     event PermitGranted(
         uint256 indexed permitId, address indexed owner, address indexed agent, uint256 agentId, Terms terms
@@ -227,6 +230,16 @@ contract AgentPermit is EIP712, Nonces, ReentrancyGuard {
         return _paid[payee][client];
     }
 
+    /// @notice Cuántas cuentas distintas le han pagado a `payee`.
+    function payerCount(address payee) external view returns (uint256) {
+        return _payers[payee].length();
+    }
+
+    /// @notice Página de cuentas que le han pagado a `payee`, en orden de primer pago.
+    function payers(address payee, uint256 offset, uint256 limit) external view returns (address[] memory page) {
+        return _payers[payee].values(offset, offset + limit);
+    }
+
     // solhint-disable-next-line func-name-mixedcase
     function DOMAIN_SEPARATOR() external view returns (bytes32) {
         return _domainSeparatorV4();
@@ -273,6 +286,8 @@ contract AgentPermit is EIP712, Nonces, ReentrancyGuard {
         permit.spent += amount;
         _paid[to][permit.owner] += amount;
         _paid[to][permit.terms.agent] += amount;
+        _payers[to].add(permit.owner);
+        _payers[to].add(permit.terms.agent);
         emit Spent(permitId, permit.terms.agent, to, permit.owner, permit.terms.token, amount, ref, requestId);
         IERC20(permit.terms.token).safeTransferFrom(permit.owner, to, amount);
     }

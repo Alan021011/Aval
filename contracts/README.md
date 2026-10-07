@@ -31,6 +31,23 @@ Cada permiso (`Terms`) fija: agente, ID en ERC-8004, token, máximo por gasto, t
 | `approveSpend(requestId, auth)` | Cualquiera | Ejecuta el pedido si trae la aprobación de la passkey del usuario sobre `approvalChallenge(requestId)` |
 | `remaining`, `getPermit`, `getRequest`, `isAllowedRecipient` | — | Consultas |
 | `paidAmount(payee, client)` | — | Recibo acumulado de pagos, para filtrar la reputación |
+| `payerCount(payee)`, `payers(payee, offset, limit)` | — | Cuentas que le pagaron a `payee` (el dueño del permiso y su agente) |
+
+### `ReputationReader`
+
+Reputación verificada de agentes ERC-8004: resume solo las reseñas de cuentas que de verdad le pagaron al agente a través de `AgentPermit`. Cualquiera puede reseñar en ERC-8004; este lector ignora a quien no tiene recibo.
+
+- `verifiedSummary(agentId, tag1, tag2, minPaid)`: devuelve `count`, `value` y `decimals` (el promedio que calcula ERC-8004) y cuántos clientes verificados entraron. `minPaid` exige un pago mínimo para contar.
+- `verifiedClients(agentId, minPaid)`: las cuentas que cuentan.
+
+Detalles:
+- El pago cuenta si fue a la billetera registrada del agente (`getAgentWallet` del Identity Registry).
+- El Reputation Registry de Monad testnet **revierte si la lista de clientes está vacía**; el lector devuelve cero en ese caso.
+- ERC-8004 devuelve el **promedio truncado** a los decimales de las reseñas: conviene reseñar en escala 0–100 en vez de -1/1.
+- Considera como máximo 200 pagadores; para más, el indexador calcula el puntaje completo.
+- Limitación conocida: un agente podría pagarse desde cuentas propias. `minPaid` encarece ese fraude, pero no lo elimina.
+
+Registros ERC-8004 en Monad testnet: Identity `0x8004A818BFB912233c491871b3d84c89A494BD9e`, Reputation `0x8004B663056A597Dffe9eCcC1965A193B7388713`.
 
 `approvalChallenge(requestId)` es un hash EIP-712 atado a la red, al contrato y a los datos exactos del gasto: una aprobación no sirve para otro pedido. Los límites se revisan otra vez al aprobar, por si el permiso se revocó, venció o se gastó mientras tanto.
 
@@ -46,4 +63,4 @@ forge test
 forge test --fork-url monad_testnet
 ```
 
-El último corre los tests sobre una copia de Monad testnet, donde se usa el precompile real.
+El último corre los tests sobre una copia de Monad testnet, donde se usa el precompile P256 real y se activa `test/fork/`, que prueba `ReputationReader` contra los registros ERC-8004 reales.

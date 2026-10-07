@@ -162,6 +162,18 @@ contract AgentPermitTest is PasskeyTestBase {
         assertEq(permits.remaining(id), 270e6);
         assertEq(permits.paidAmount(shop, owner), 30e6);
         assertEq(permits.paidAmount(shop, agent), 30e6);
+
+        assertEq(permits.payerCount(shop), 2);
+        address[] memory page = permits.payers(shop, 0, 10);
+        assertEq(page.length, 2);
+        assertEq(page[0], owner);
+        assertEq(page[1], agent);
+
+        // Un segundo pago no duplica a los pagadores.
+        vm.prank(agent);
+        permits.spend(id, shop, 10e6, "pedido-2");
+        assertEq(permits.payerCount(shop), 2);
+        assertEq(permits.paidAmount(shop, owner), 40e6);
     }
 
     function test_RevertWhen_CallerIsNotAgent() public {
