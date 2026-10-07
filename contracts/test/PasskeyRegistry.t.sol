@@ -1,15 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 import {WebAuthn} from "@openzeppelin/contracts/utils/cryptography/WebAuthn.sol";
 import {PasskeyRegistry} from "../src/PasskeyRegistry.sol";
+import {PasskeyTestBase} from "./utils/PasskeyTestBase.sol";
 
-contract PasskeyRegistryTest is Test {
-    uint256 private constant N = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551;
-    bytes1 private constant UP_UV = 0x05;
-    bytes1 private constant UP_ONLY = 0x01;
+contract PasskeyRegistryTest is PasskeyTestBase {
     bytes32 private constant REGISTER_TYPEHASH =
         keccak256("Register(address owner,bytes32 x,bytes32 y,uint256 nonce,uint256 deadline)");
 
@@ -22,9 +18,7 @@ contract PasskeyRegistryTest is Test {
 
     function setUp() public {
         registry = new PasskeyRegistry();
-        (uint256 x, uint256 y) = vm.publicKeyP256(passkeyPk);
-        qx = bytes32(x);
-        qy = bytes32(y);
+        (qx, qy) = _passkeyPublicKey(passkeyPk);
         (owner, ownerPk) = makeAddrAndKey("mera-owner");
     }
 
@@ -125,7 +119,7 @@ contract PasskeyRegistryTest is Test {
         bytes memory challenge = abi.encodePacked(keccak256("accion"));
         WebAuthn.WebAuthnAuth memory auth = _assertion(passkeyPk, challenge, UP_UV);
         // La misma firma en su forma "alta" también es válida en ECDSA; se rechaza para evitar maleabilidad.
-        auth.s = bytes32(N - uint256(auth.s));
+        auth.s = bytes32(P256_N - uint256(auth.s));
         assertFalse(registry.verifyApproval(owner, challenge, auth));
     }
 
@@ -150,32 +144,5 @@ contract PasskeyRegistryTest is Test {
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", registry.DOMAIN_SEPARATOR(), structHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, digest);
         return abi.encodePacked(r, s, v);
-    }
-
-    /// Arma una aserción como la que produce un navegador: authenticatorData, clientDataJSON y firma P256
-    /// sobre sha256(authenticatorData ‖ sha256(clientDataJSON)), normalizada a s bajo.
-    function _assertion(uint256 pk, bytes memory challenge, bytes1 flags)
-        private
-        pure
-        returns (WebAuthn.WebAuthnAuth memory)
-    {
-        string memory clientDataJSON = string.concat(
-            '{"type":"webauthn.get","challenge":"',
-            Base64.encodeURL(challenge),
-            '","origin":"http://localhost:5173","crossOrigin":false}'
-        );
-        bytes memory authenticatorData = abi.encodePacked(sha256("localhost"), flags, uint32(0));
-        bytes32 digest = sha256(abi.encodePacked(authenticatorData, sha256(bytes(clientDataJSON))));
-        (bytes32 r, bytes32 s) = vm.signP256(pk, digest);
-        if (uint256(s) > N / 2) s = bytes32(N - uint256(s));
-
-        return WebAuthn.WebAuthnAuth({
-            r: r,
-            s: s,
-            challengeIndex: 23,
-            typeIndex: 1,
-            authenticatorData: authenticatorData,
-            clientDataJSON: clientDataJSON
-        });
     }
 }
