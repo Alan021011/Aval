@@ -1,5 +1,5 @@
 import type { WebAuthnClient } from '@category-labs/mera';
-import { bytesToHex, concat, type Hex, sha256 } from 'viem';
+import { bytesToHex, concat, type Hex, hexToBytes, numberToHex, sha256 } from 'viem';
 import { clientePublico, PRECOMPILE_P256 } from './monad';
 
 export type ClaveP256 = { x: Hex; y: Hex };
@@ -157,7 +157,11 @@ async function claveDesdeRespuesta(resp: AuthenticatorAttestationResponse): Prom
   return { x: bytesToHex(cruda.slice(1, 33)), y: bytesToHex(cruda.slice(33, 65)) };
 }
 
-// La firma WebAuthn viene en DER: 30 len 02 lenR R 02 lenS S.
+const N_P256 = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n;
+
+// La firma WebAuthn viene en DER: 30 len 02 lenR R 02 lenS S. Se devuelve con `s` bajo (s ≤ n/2):
+// (r, s) y (r, n - s) son igual de válidas, pero los contratos solo aceptan la forma baja para evitar
+// maleabilidad, y los autenticadores entregan cualquiera de las dos.
 function firmaDerARS(der: Uint8Array) {
   if (der[0] !== 0x30) throw new Error('Firma con formato inesperado');
   let i = 2;
@@ -169,8 +173,9 @@ function firmaDerARS(der: Uint8Array) {
     return a32Bytes(valor);
   };
   const r = leerEntero();
-  const s = leerEntero();
-  return { r, s };
+  const s = BigInt(bytesToHex(leerEntero()));
+  const sBajo = s > N_P256 / 2n ? N_P256 - s : s;
+  return { r, s: hexToBytes(numberToHex(sBajo, { size: 32 })) };
 }
 
 function a32Bytes(entero: Uint8Array) {
