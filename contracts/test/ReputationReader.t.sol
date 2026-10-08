@@ -4,9 +4,9 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {AgentPermit} from "../src/AgentPermit.sol";
 import {PasskeyRegistry} from "../src/PasskeyRegistry.sol";
-import {IReputationRegistry, ReputationReader} from "../src/ReputationReader.sol";
+import {IClientVerifier, IReputationRegistry, ReputationReader} from "../src/ReputationReader.sol";
 import {TestUSD} from "../src/TestUSD.sol";
-import {MockIdentityRegistry, MockReputationRegistry} from "./utils/MockERC8004.sol";
+import {MockClientVerifier, MockIdentityRegistry, MockReputationRegistry} from "./utils/MockERC8004.sol";
 
 contract ReputationReaderTest is Test {
     uint256 private constant SERVICE_AGENT_ID = 42;
@@ -97,6 +97,72 @@ contract ReputationReaderTest is Test {
         reputation.giveFeedback(SERVICE_AGENT_ID, 90);
 
         assertEq(reader.verifiedSummary(SERVICE_AGENT_ID, "", "", 0).count, 0);
+    }
+
+    // ---------------------------------------------------------------- capa 2: humanos verificados
+
+    /// Autopago: un atacante sin verificar crea tres cuentas, le paga a su propio agente y deja 100. Una
+    /// persona verificada paga y su agente deja 60. Sin verificador el promedio sale 90; con verificador, 60.
+    function test_Verifier_ExcludesSelfDealingAccounts() public {
+        MockClientVerifier verifier = new MockClientVerifier();
+        (address human, address humanAgent) = _pay("persona-real", 20e6);
+        verifier.verify(human);
+        vm.prank(humanAgent);
+        reputation.giveFeedback(SERVICE_AGENT_ID, 60);
+
+        for (uint256 i; i < 3; ++i) {
+            (address fake,) = _pay(string.concat("cuenta-falsa-", vm.toString(i)), 20e6);
+            vm.prank(fake);
+            reputation.giveFeedback(SERVICE_AGENT_ID, 100);
+        }
+
+        assertEq(reader.verifiedSummary(SERVICE_AGENT_ID, "", "", 0).value, 90);
+
+        ReputationReader.Summary memory s =
+            reader.verifiedSummary(SERVICE_AGENT_ID, "", "", 0, IClientVerifier(address(verifier)));
+        assertEq(s.count, 1);
+        assertEq(s.value, 60);
+        assertEq(s.verifiedClients, 2, "la persona y su agente");
+    }
+
+    function test_Verifier_AgentCountsThroughItsVerifiedOwner() public {
+        MockClientVerifier verifier = new MockClientVerifier();
+        (address human, address humanAgent) = _pay("persona-real", 20e6);
+        verifier.verify(human);
+
+        address[] memory clients = reader.verifiedClients(SERVICE_AGENT_ID, 0, IClientVerifier(address(verifier)));
+        assertEq(clients.length, 2);
+        assertEq(clients[1], humanAgent);
+        assertEq(permits.payerOwner(serviceWallet, humanAgent), human);
+    }
+
+    function test_Verifier_ZeroWhenNobodyIsVerified() public {
+        MockClientVerifier verifier = new MockClientVerifier();
+        (address client,) = _pay("cliente", 20e6);
+        vm.prank(client);
+        reputation.giveFeedback(SERVICE_AGENT_ID, 90);
+
+        ReputationReader.Summary memory s =
+            reader.verifiedSummary(SERVICE_AGENT_ID, "", "", 0, IClientVerifier(address(verifier)));
+        assertEq(s.count, 0);
+        assertEq(s.verifiedClients, 0);
+    }
+
+    function test_Verifier_CombinesWithMinPaid() public {
+        MockClientVerifier verifier = new MockClientVerifier();
+        (address small,) = _pay("verificado-pequeno", 1e6);
+        (address big,) = _pay("verificado-grande", 90e6);
+        verifier.verify(small);
+        verifier.verify(big);
+        vm.prank(small);
+        reputation.giveFeedback(SERVICE_AGENT_ID, 0);
+        vm.prank(big);
+        reputation.giveFeedback(SERVICE_AGENT_ID, 80);
+
+        ReputationReader.Summary memory s =
+            reader.verifiedSummary(SERVICE_AGENT_ID, "", "", 50e6, IClientVerifier(address(verifier)));
+        assertEq(s.count, 1);
+        assertEq(s.value, 80);
     }
 
     // ---------------------------------------------------------------- utilidades

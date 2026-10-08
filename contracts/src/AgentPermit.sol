@@ -72,6 +72,7 @@ contract AgentPermit is EIP712, Nonces, ReentrancyGuard {
     mapping(uint256 requestId => SpendRequest) private _requests;
     mapping(address payee => mapping(address client => uint256)) private _paid;
     mapping(address payee => EnumerableSet.AddressSet) private _payers;
+    mapping(address payee => mapping(address payer => address owner)) private _payerOwner;
 
     event PermitGranted(
         uint256 indexed permitId, address indexed owner, address indexed agent, uint256 agentId, Terms terms
@@ -240,6 +241,13 @@ contract AgentPermit is EIP712, Nonces, ReentrancyGuard {
         return _payers[payee].values(offset, offset + limit);
     }
 
+    /// @notice El usuario (dueño del permiso) detrás de un pagador: él mismo si pagó como dueño, o el dueño del
+    /// permiso si quien pagó fue su agente. Sirve para verificar al humano aunque la reseña la deje el agente.
+    /// @dev Si una misma dirección de agente pagó a `payee` para varios dueños, queda el último.
+    function payerOwner(address payee, address payer) external view returns (address) {
+        return _payerOwner[payee][payer];
+    }
+
     // solhint-disable-next-line func-name-mixedcase
     function DOMAIN_SEPARATOR() external view returns (bytes32) {
         return _domainSeparatorV4();
@@ -288,6 +296,8 @@ contract AgentPermit is EIP712, Nonces, ReentrancyGuard {
         _paid[to][permit.terms.agent] += amount;
         _payers[to].add(permit.owner);
         _payers[to].add(permit.terms.agent);
+        _payerOwner[to][permit.owner] = permit.owner;
+        _payerOwner[to][permit.terms.agent] = permit.owner;
         emit Spent(permitId, permit.terms.agent, to, permit.owner, permit.terms.token, amount, ref, requestId);
         IERC20(permit.terms.token).safeTransferFrom(permit.owner, to, amount);
     }

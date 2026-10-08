@@ -47,3 +47,12 @@ contract MockReputationRegistry {
         return (count, summaryValue, 0);
     }
 }
+
+/// Verificador de humanos simulado: una lista de cuentas verificadas (como "1 carnet = 1 cuenta").
+contract MockClientVerifier {
+    mapping(address account => bool) public isVerified;
+
+    function verify(address account) external {
+        isVerified[account] = true;
+    }
+}

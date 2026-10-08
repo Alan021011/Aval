@@ -2,6 +2,23 @@
 
 Contratos de Aval en Solidity, con [Foundry](https://getfoundry.sh). Red objetivo: Monad testnet (chain ID 10143).
 
+## Despliegue en Monad testnet
+
+Código verificado en Sourcify (coincidencia exacta). Las direcciones también están en [`deployments/monad-testnet.json`](deployments/monad-testnet.json).
+
+| Contrato | Dirección |
+|---|---|
+| `PasskeyRegistry` | [`0x0C46E673C0f852920e9F15902B0859358Eb53789`](https://testnet.monadvision.com/address/0x0C46E673C0f852920e9F15902B0859358Eb53789) |
+| `AgentPermit` | [`0x6d2A62614AF055921308c01745343413FCF8AA2C`](https://testnet.monadvision.com/address/0x6d2A62614AF055921308c01745343413FCF8AA2C) |
+| `TestUSD` | [`0xeD4Bb1e1926441461BcADA4BBF647Aba8574B3C5`](https://testnet.monadvision.com/address/0xeD4Bb1e1926441461BcADA4BBF647Aba8574B3C5) |
+| `ReputationReader` | [`0x52231e5FC27CBe9B0D466b9A4EecF19B9705A7d3`](https://testnet.monadvision.com/address/0x52231e5FC27CBe9B0D466b9A4EecF19B9705A7d3) |
+
+Para desplegar de nuevo, poner `PRIVATE_KEY` en `contracts/.env` (git lo ignora) y correr:
+
+```bash
+forge script script/Deploy.s.sol --rpc-url monad_testnet --broadcast
+```
+
 ## Contratos
 
 ### `PasskeyRegistry`
@@ -39,6 +56,7 @@ Reputación verificada de agentes ERC-8004: resume solo las reseñas de cuentas 
 
 - `verifiedSummary(agentId, tag1, tag2, minPaid)`: devuelve `count`, `value` y `decimals` (el promedio que calcula ERC-8004) y cuántos clientes verificados entraron. `minPaid` exige un pago mínimo para contar.
 - `verifiedClients(agentId, minPaid)`: las cuentas que cuentan.
+- Ambas tienen una versión con un `IClientVerifier` extra: solo cuentan los pagos cuyo humano (el dueño del permiso, aunque la reseña la deje su agente) está verificado por esa fuente. La elige quien consulta; con la dirección cero no se exige.
 
 Detalles:
 - El pago cuenta si fue a la billetera registrada del agente (`getAgentWallet` del Identity Registry).
