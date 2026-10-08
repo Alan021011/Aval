@@ -91,6 +91,20 @@ Dentro de este monorepo ya está disponible como workspace (`packages/sdk`).
 
 Para que el usuario no necesite MON: `signPermit({ value })` → `relayPermit(signed)` autoriza a AgentPermit con una firma (ERC-2612). También `approve`, `balanceOf` y `faucet` (hasta 1.000 tUSD, solo testnet).
 
+### `createRelayerClient`
+
+Cliente de un [relayer](../../apps/relayer/README.md): le envías lo que el usuario firmó y él paga el gas.
+
+```ts
+const relayer = createRelayerClient({ url: 'http://localhost:8787' });
+await relayer.faucet(user);                                              // tUSD de prueba
+await relayer.register(await aval.passkeys.signRegister(key));           // registra la passkey
+await relayer.grant(await aval.permits.signGrant({ agent, ... }));       // crea el permiso
+await relayer.approve(requestId, await aval.permits.signApproval(requestId));
+```
+
+Métodos: `health`, `register`, `grant`, `revoke`, `tokenPermit`, `approve`, `faucet`. Los errores llegan como `AvalError` (por ejemplo `RateLimited`, `TokenNotAllowed`). `serialize` y `deserialize` conservan los `bigint` al enviar JSON.
+
 ### Passkeys y WebAuthn
 
 Por defecto el SDK pide la huella con `navigator.credentials.get`. Para otros entornos (pruebas, apps nativas) pasa tu propio `assertionProvider`:

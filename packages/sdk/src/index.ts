@@ -67,3 +67,7 @@ export {
   P256_N,
 } from './webauthn.js';
 export type { AssertionProvider, PasskeyPublicKey, RawAssertion, WebAuthnAuth } from './webauthn.js';
+
+export { createRelayerClient } from './relayer-client.js';
+export type { RelayerClient, RelayerFetch, RelayerHealth } from './relayer-client.js';
+export { deserialize, serialize } from './wire.js';
