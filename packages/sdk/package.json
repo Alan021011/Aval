@@ -1,0 +1,34 @@
+{
+  "name": "@aval/sdk",
+  "version": "0.1.0",
+  "description": "SDK de Aval: permisos acotados, aprobaciones con passkey y reputación verificada para agentes de IA en Monad",
+  "type": "module",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "gen:abi": "node scripts/gen-abi.mjs",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "viem": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "typescript": "^7.0.2",
+    "viem": "^2.57.4",
+    "vitest": "^5.0.3"
+  }
+}

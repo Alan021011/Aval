@@ -7,6 +7,8 @@
   ],
   "scripts": {
     "dev": "npm run dev -w @aval/demo",
-    "build": "npm run build -w @aval/demo"
+    "build": "npm run build -w @aval/demo",
+    "test:sdk": "npm test -w @aval/sdk",
+    "build:sdk": "npm run build -w @aval/sdk"
   }
 }

@@ -4,7 +4,7 @@ Capa de confianza para agentes de IA en Monad: la passkey del usuario es la raí
 
 ## Estado
 
-**Contratos desplegados en Monad testnet** y verificados en Sourcify: `PasskeyRegistry`, `AgentPermit`, `TestUSD` y `ReputationReader`. Direcciones y detalle en [`contracts/README.md`](contracts/README.md).
+**SDK listo** (`packages/sdk`) y **contratos desplegados en Monad testnet**, verificados en Sourcify: `PasskeyRegistry`, `AgentPermit`, `TestUSD` y `ReputationReader`. Direcciones y detalle en [`contracts/README.md`](contracts/README.md).
 
 Prueba inicial (`apps/demo`): comprobar que de **una sola passkey** sale:
 
@@ -28,6 +28,7 @@ Abre `http://localhost:5173` y:
 
 ## Estructura
 
+- `packages/sdk/`: **SDK en TypeScript** (`@aval/sdk`) para integrar Aval con viem: permisos, aprobaciones con passkey, recibos y reputación verificada. Ver [`packages/sdk/README.md`](packages/sdk/README.md).
 - `contracts/`: contratos en Solidity con Foundry, tests y script de despliegue. Ver [`contracts/README.md`](contracts/README.md).
 - `apps/demo/src/lib/p256.ts`: cliente WebAuthn con captura de la clave P256, aprobación con desafío propio y verificación con el precompile.
 - `apps/demo/src/lib/cuenta.ts`: cuenta con Mera. La derivación (PRF → BIP-39 → `m/44'/60'/0'/0/0`) viene de Garante.
