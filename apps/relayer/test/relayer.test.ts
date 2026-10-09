@@ -8,6 +8,7 @@ import {
   createWalletClient,
   defineChain,
   http,
+  BaseError,
   NonceTooLowError,
   parseEther,
 } from 'viem';
@@ -312,13 +313,22 @@ describe('superficie del servicio', () => {
 });
 
 describe('choques de nonce entre instancias (como en funciones serverless)', () => {
-  /** Un walletClient cuyos primeros `failures` envíos fallan con el error de nonce, como si otra instancia se hubiera adelantado. */
-  function collidingWallet(failures: number) {
+  /**
+   * Un walletClient cuyos primeros `failures` envíos fallan con un error de choque, como si otra instancia se hubiera
+   * adelantado. Por defecto es el error estándar de Ethereum; `monad` usa el que devuelve de verdad el RPC de Monad
+   * testnet (visto en producción): un error genérico de parámetros con el detalle "An existing transaction had higher
+   * priority", que viem no clasifica como error de nonce.
+   */
+  function collidingWallet(failures: number, kind: 'ethereum' | 'monad' = 'ethereum') {
     const real = wallet(relayerKey);
     let calls = 0;
+    const collision = () =>
+      kind === 'ethereum'
+        ? new NonceTooLowError({ nonce: 1 })
+        : new BaseError('Missing or invalid parameters.', { details: 'An existing transaction had higher priority' });
     const flaky = { ...real, writeContract: (...args: Parameters<typeof real.writeContract>) => {
       calls++;
-      if (calls <= failures) throw new NonceTooLowError({ nonce: 1 });
+      if (calls <= failures) throw collision();
       return real.writeContract(...args);
     } } as typeof real;
     return { flaky, calls: () => calls };
@@ -345,6 +355,18 @@ describe('choques de nonce entre instancias (como en funciones serverless)', () 
 
     expect(result.hash).toMatch(/^0x[0-9a-f]{64}$/);
     expect(calls()).toBe(3); // dos intentos chocaron y el tercero entró
+    expect(await createAval({ publicClient }).tokens.balanceOf(target)).toBe(500_000_000n);
+  });
+
+  it('reconoce el error real de Monad ("An existing transaction had higher priority") y reintenta', async (ctx) => {
+    needAnvil(ctx);
+    const { flaky, calls } = collidingWallet(2, 'monad');
+    const client = setupWith(flaky, { maxNonceRetries: 4 });
+    const target = newUser().account.address;
+
+    await client.faucet(target);
+
+    expect(calls()).toBe(3);
     expect(await createAval({ publicClient }).tokens.balanceOf(target)).toBe(500_000_000n);
   });
 

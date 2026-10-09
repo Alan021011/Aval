@@ -90,5 +90,5 @@ export const defaultLimits = (allowedTokens: Address[]): Limits => ({
   maxBodyBytes: 16 * 1024,
   faucetAmount: 500_000_000n, // 500 tUSD
   faucetCooldownSeconds: 3600,
-  maxNonceRetries: 4,
+  maxNonceRetries: 6,
 });

@@ -5,7 +5,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { ZodError } from 'zod';
 import { type Limits, RelayerError } from './limits.js';
-import type { Relayer } from './relayer.js';
+import { type Relayer, briefly } from './relayer.js';
 import { faucetSchema, isRelayKind, schemas } from './schemas.js';
 
 export type AppOptions = {
@@ -103,7 +103,7 @@ export function createApp({ relayer, limits, allowedOrigins, trustProxy = false 
 
   app.notFound((c) => fail(c, new RelayerError(404, 'NotFound', 'Ruta desconocida.')));
   app.onError((error, c) => {
-    console.error('[relayer] error no controlado:', error instanceof Error ? error.message : error);
+    console.error('[relayer] error no controlado:', briefly(error));
     return fail(c, new RelayerError(500, 'Internal', 'Error interno del relayer.'));
   });
 
@@ -121,6 +121,6 @@ function badRequest(error: unknown): RelayerError {
 
 function asRelayerError(error: unknown): RelayerError {
   if (error instanceof RelayerError) return error;
-  console.error('[relayer] error inesperado:', error instanceof Error ? error.message : error);
+  console.error('[relayer] error inesperado:', briefly(error));
   return new RelayerError(500, 'Internal', 'Error interno del relayer.');
 }

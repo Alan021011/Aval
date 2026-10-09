@@ -43,6 +43,14 @@ type Context = { ip: string };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Resumen corto de un error para el registro: viem incluye la transacción completa en `message`. */
+export function briefly(error: unknown): string {
+  if (error instanceof BaseError) {
+    return `${error.shortMessage}${error.details ? ` — ${error.details}` : ''}`.slice(0, 300);
+  }
+  return (error instanceof Error ? error.message : String(error)).slice(0, 300);
+}
+
 /** ¿El envío falló porque otra transacción de la misma cuenta ya usó ese nonce? */
 function isNonceCollision(error: unknown): boolean {
   if (!(error instanceof BaseError)) return false;
@@ -50,7 +58,9 @@ function isNonceCollision(error: unknown): boolean {
     (e) =>
       e instanceof NonceTooLowError ||
       e instanceof NonceTooHighError ||
-      /nonce too low|nonce too high|replacement transaction underpriced|already known/i.test(
+      // El RPC de Monad no dice "nonce too low" cuando dos envíos chocan: responde "An existing transaction had
+      // higher priority" (visto en Monad testnet). Los demás mensajes son los habituales de Ethereum.
+      /nonce too low|nonce too high|replacement transaction underpriced|already known|existing transaction had higher priority/i.test(
         e instanceof Error ? e.message : '',
       ),
   );
@@ -131,13 +141,13 @@ export function createRelayer(options: RelayerOptions) {
         return result;
       } catch (error) {
         if (attempt < limits.maxNonceRetries && isNonceCollision(error)) {
-          await sleep(100 * (attempt + 1) + Math.random() * 200);
+          await sleep(150 * (attempt + 1) + Math.random() * 400);
           continue;
         }
         if (error instanceof RelayerError) throw error;
         // Un error de contrato (firma inválida, límite superado…) es culpa de la solicitud, no del servidor.
         if (error instanceof AvalError) throw new RelayerError(422, error.code, error.message);
-        console.error('[relayer] error inesperado:', error instanceof Error ? error.message : error);
+        console.error('[relayer] error inesperado:', briefly(error));
         throw new RelayerError(500, 'Internal', 'Error interno del relayer.');
       }
     }

@@ -96,7 +96,7 @@ Para que el usuario no necesite MON: `signPermit({ value })` → `relayPermit(si
 Cliente de un [relayer](../../apps/relayer/README.md): le envías lo que el usuario firmó y él paga el gas.
 
 ```ts
-const relayer = createRelayerClient({ url: 'http://localhost:8787' });
+const relayer = createRelayerClient({ url: 'https://aval-relayer.vercel.app' });
 await relayer.faucet(user);                                              // tUSD de prueba
 await relayer.register(await aval.passkeys.signRegister(key));           // registra la passkey
 await relayer.grant(await aval.permits.signGrant({ agent, ... }));       // crea el permiso

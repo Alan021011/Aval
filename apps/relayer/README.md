@@ -88,6 +88,8 @@ npm test
 
 ## Despliegue en Vercel
 
+**En vivo:** https://aval-relayer.vercel.app (Monad testnet). `GET /health` muestra su estado y saldo. Probado en vivo: un usuario sin MON recibe tUSD y registra su passkey en ~6 s, y 10 operaciones simultáneas llegan todas (dos corridas, 20 de 20).
+
 `api/index.ts` es la entrada para Vercel: una función Node que atiende `/health`, `/relay/*` y `/faucet`. `vercel.json` ya trae el comando de instalación, el de compilación del SDK y las reglas de reenvío.
 
 Ajustes del proyecto en Vercel:
@@ -106,11 +108,16 @@ Variables de entorno (márcalas como **Sensitive** las secretas):
 | `TRUST_PROXY` | `true` (en Vercel la IP real llega en `x-forwarded-for`; Vercel la reescribe y el cliente no puede falsearla) |
 | `ALLOWED_ORIGINS` | La URL de la demo, por ejemplo `https://aval-demo.vercel.app` |
 
+Dos cosas que solo se descubren en el entorno real (las pruebas en local no las detectaban):
+
+1. **El formato de la función importa.** Con el formato clásico `(req, res)` de Node, Vercel lee el cuerpo de la petición antes de llamar a la función y los POST se cuelgan hasta que Vercel los corta a los 300 s (los GET sí funcionan). Por eso `api/index.ts` usa el formato estándar de Web: `export default { fetch(request) }`.
+2. **El RPC de Monad no dice "nonce too low" cuando dos envíos chocan.** Responde un error genérico de parámetros con el detalle *"An existing transaction had higher priority"*, que viem no clasifica como error de nonce. El relayer lo reconoce por ese mensaje.
+
 Lo que cambia respecto a un servidor normal:
 
-- **Varias instancias a la vez.** Vercel puede correr copias de la función en paralelo, cada una con su propia cola. Dos copias pueden elegir el mismo nonce y una choca. Cuando eso pasa la transacción no llegó a enviarse, así que el relayer la **reintenta sola** (hasta `MAX_NONCE_RETRIES`, 4 por defecto). Está probado, también inyectando el error.
+- **Varias instancias a la vez.** Vercel puede correr copias de la función en paralelo, cada una con su propia cola. Dos copias pueden elegir el mismo nonce y una choca. Cuando eso pasa la transacción no llegó a enviarse, así que el relayer la **reintenta sola** (hasta `MAX_NONCE_RETRIES`, 6 por defecto). Está probado, también inyectando el error.
 - **Los límites no se comparten entre copias.** Cada instancia cuenta por su cuenta, así que el límite por IP es aproximado. Para algo más estricto hay que moverlo a un almacén compartido (por ejemplo, Upstash Redis).
-- **Tiempo máximo por función.** En el plan gratuito es corto (10 s según la documentación pública). Una operación en testnet tarda 1-3 s.
+- **Tiempo máximo por función.** En el plan gratuito es corto (10 s según la documentación pública). Medido en vivo: el flujo completo de la prueba (dos operaciones) tarda ~6 s y diez operaciones simultáneas ~6 s.
 - **Si falta una variable de entorno**, la función responde `ServerMisconfigured` (HTTP 500) y el motivo queda en los registros de Vercel, en vez de no arrancar.
 
 Para probar la función de Vercel en tu equipo, sin desplegar:
