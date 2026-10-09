@@ -55,6 +55,8 @@ export type Metrics = {
   firstTxMs: number | null;
   /** Del toque en "Empezar" hasta tener la cuenta lista, en ms. */
   readyMs: number | null;
+  /** Cuántas veces se pidió la huella hasta tener la cuenta lista (no cambia con lo que el usuario haga después). */
+  readyPrompts: number | null;
 };
 
 export type PermitForm = { perSpend: bigint; total: bigint; threshold: bigint; hours: number };
@@ -141,7 +143,7 @@ export function useAval() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [lockAt, setLockAt] = useState<number | null>(null);
-  const [metrics, setMetrics] = useState<Metrics>({ firstTxMs: null, readyMs: null });
+  const [metrics, setMetrics] = useState<Metrics>({ firstTxMs: null, readyMs: null, readyPrompts: null });
   const [prompts, setPrompts] = useState(0);
   const [needsFallback, setNeedsFallback] = useState(false);
   const [lastResult, setLastResult] = useState<{ kind: 'ok' | 'blocked'; text: string } | null>(null);
@@ -271,7 +273,7 @@ export function useAval() {
       setMode(kind);
       setPhase('working');
       startedAt.current = performance.now();
-      setMetrics({ firstTxMs: null, readyMs: null });
+      setMetrics({ firstTxMs: null, readyMs: null, readyPrompts: null });
       const current = kind === 'real' ? realBackend() : simulatedBackend();
       try {
         mark('account', 'doing');
@@ -282,7 +284,7 @@ export function useAval() {
         mark('account', 'done');
         await prepare();
         await refresh();
-        setMetrics((m) => ({ ...m, readyMs: performance.now() - startedAt.current }));
+        setMetrics((m) => ({ ...m, readyMs: performance.now() - startedAt.current, readyPrompts: backend.current?.prompts() ?? null }));
         setPhase('in');
       } catch (e) {
         if (isMeraError(e) && e.code === 'PRF_UNAVAILABLE') setNeedsFallback(true);
@@ -305,7 +307,7 @@ export function useAval() {
     try {
       await prepare();
       await refresh();
-      setMetrics((m) => ({ ...m, readyMs: performance.now() - startedAt.current }));
+      setMetrics((m) => ({ ...m, readyMs: performance.now() - startedAt.current, readyPrompts: backend.current?.prompts() ?? null }));
       setPhase('in');
     } catch (e) {
       setSteps((old) => old.map((s) => (s.state === 'doing' ? { ...s, state: 'error' } : s)));
@@ -323,13 +325,15 @@ export function useAval() {
       setMode(kind);
       startedAt.current = performance.now();
       const current = backend.current?.mode === kind ? backend.current : kind === 'real' ? realBackend() : simulatedBackend();
+      // Al desbloquear se reutiliza la misma passkey: se cuentan solo las verificaciones de esta entrada.
+      const promptsBefore = current.prompts();
       try {
         const opened = await signIn(current);
         const changed = session.current && session.current.address !== opened.address;
         bindSession(opened, current);
         if (changed) setSnapshot(null);
         setSnapshot(await load(opened.address));
-        setMetrics((m) => ({ ...m, readyMs: performance.now() - startedAt.current }));
+        setMetrics((m) => ({ ...m, readyMs: performance.now() - startedAt.current, readyPrompts: current.prompts() - promptsBefore }));
         setLastResult(null);
         setPhase('in');
         addLog({ kind: 'info', title: 'Sesión abierta con la huella: estado reconstruido desde la cadena' });
@@ -380,7 +384,7 @@ export function useAval() {
     setLog([]);
     setLastResult(null);
     setLockAt(null);
-    setMetrics({ firstTxMs: null, readyMs: null });
+    setMetrics({ firstTxMs: null, readyMs: null, readyPrompts: null });
     setPhase('out');
     notify('info', 'Datos locales borrados. Entra con tu huella: todo se reconstruye desde la cadena.');
   }, [notify]);

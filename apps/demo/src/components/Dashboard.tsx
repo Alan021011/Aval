@@ -28,7 +28,8 @@ export function Summary({ app }: { app: App }) {
           <Icon name="check" />
           <div>
             <strong>
-              Listo en {seconds(app.metrics.readyMs)} s, con {app.prompts === 1 ? '1 verificación' : `${app.prompts} verificaciones`} de tu huella.
+              Listo en {seconds(app.metrics.readyMs)} s, con{' '}
+              {(app.metrics.readyPrompts ?? 1) === 1 ? '1 verificación' : `${app.metrics.readyPrompts} verificaciones`} de tu huella.
             </strong>
             <p>No necesitaste cripto, ni extensiones, ni frases secretas: el gas lo paga el relayer.</p>
           </div>

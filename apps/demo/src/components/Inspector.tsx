@@ -59,7 +59,11 @@ export function Inspector({ app }: { app: App }) {
               <dd>{app.metrics.firstTxMs === null ? '—' : `${seconds(app.metrics.firstTxMs)} s`}</dd>
             </div>
             <div>
-              <dt>Verificaciones de huella pedidas</dt>
+              <dt>Verificaciones de huella al crear la cuenta</dt>
+              <dd>{app.metrics.readyPrompts ?? '—'}</dd>
+            </div>
+            <div>
+              <dt>Verificaciones en total (incluye aprobaciones)</dt>
               <dd>{app.prompts}</dd>
             </div>
             <div>
