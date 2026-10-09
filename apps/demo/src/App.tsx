@@ -1,133 +1,140 @@
-import { isMeraError } from '@category-labs/mera';
-import { useState } from 'react';
-import { type Hex, sha256, toBytes } from 'viem';
-import { type Cuenta, crearCuenta, entrar } from './lib/cuenta';
-import { type Aprobacion, firmarAprobacion, revisarAprobacion, verificarEnMonad } from './lib/p256';
+import { useEffect, useState } from 'react';
+import { Activity, AgentPanel, Approvals, PermitCard, Reputation, Summary } from './components/Dashboard';
+import { Inspector } from './components/Inspector';
+import { Landing, Preparing } from './components/Onboarding';
+import { Button, Icon } from './components/ui';
+import { type App as AppState, useAval } from './state/useAval';
 
-type Resultado = {
-  accion: string;
-  aprobacion: Aprobacion;
-  revision: ReturnType<typeof revisarAprobacion>;
-  valida: boolean;
-  alterada: boolean;
-};
+/** Cuenta atrás de la sesión. Tiene su propio reloj para que no se redibuje toda la app cada segundo. */
+function SessionChip({ app }: { app: AppState }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
-const corto = (h: string) => `${h.slice(0, 10)}…${h.slice(-8)}`;
+  // Al llegar a cero, se bloquea sola. La clave sale de la memoria.
+  useEffect(() => {
+    if (app.phase === 'in' && app.lockAt !== null && now >= app.lockAt) app.lock('Sesión bloqueada por inactividad.');
+  }, [now, app]);
 
-function mensajeDeError(e: unknown) {
-  if (isMeraError(e) && e.code === 'PRF_UNAVAILABLE') {
-    return 'Tu passkey no soporta PRF. En Chrome de escritorio usa el gestor de Google; también sirven iCloud Keychain o 1Password.';
-  }
-  return e instanceof Error ? e.message : 'Algo falló. Inténtalo de nuevo.';
+  if (app.phase !== 'in' || app.lockAt === null) return null;
+  const left = Math.max(0, Math.ceil((app.lockAt - now) / 1000));
+  const text = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+  return (
+    <button type="button" className={`chip${left <= 60 ? ' chip-warn' : ''}`} onClick={() => app.lock('Sesión bloqueada.')} title="Bloquear la sesión ahora">
+      <span className="dot" aria-hidden="true" />
+      <span className="chip-long">Sesión abierta · se bloquea en {text}</span>
+      <span className="chip-short">Sesión · {text}</span>
+      <Icon name="lock" size={14} />
+    </button>
+  );
+}
+
+function Header({ app, inspector, onInspector }: { app: AppState; inspector: boolean; onInspector: () => void }) {
+  return (
+    <header className="topbar">
+      <div className="topbar-inner">
+        <a className="brand" href="/" aria-label="Aval, inicio">
+          <Icon name="shield" size={22} />
+          <span>Aval</span>
+        </a>
+        <div className="topbar-actions">
+          <SessionChip app={app} />
+          <Button variant={inspector ? 'primary' : 'ghost'} icon="eye" aria-pressed={inspector} onClick={onInspector}>
+            Inspector
+          </Button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function Locked({ app }: { app: AppState }) {
+  return (
+    <div className="callout callout-warn locked" role="alert">
+      <Icon name="lock" />
+      <div>
+        <strong>Sesión bloqueada</strong>
+        <p>Por seguridad, la clave salió de la memoria. Usa tu huella para continuar; tus datos siguen ahí.</p>
+      </div>
+      <Button variant="primary" icon="unlock" loading={app.busy === 'enter'} disabled={!!app.busy} onClick={() => app.enter(app.mode)}>
+        Desbloquear
+      </Button>
+    </div>
+  );
+}
+
+function Dashboard({ app, inspector }: { app: AppState; inspector: boolean }) {
+  return (
+    <div className="dashboard">
+      {app.phase === 'locked' ? <Locked app={app} /> : null}
+
+      {app.pending.length > 0 && app.phase === 'in' ? (
+        <a className="callout callout-accent attention" href="#approvals">
+          <Icon name="fingerprint" />
+          <div>
+            <strong>Tu agente espera tu aprobación</strong>
+            <p>
+              {app.pending.length === 1 ? 'Hay un pago grande' : `Hay ${app.pending.length} pagos grandes`} que solo se hará con tu huella.
+            </p>
+          </div>
+        </a>
+      ) : null}
+
+      <Summary app={app} />
+
+      <div className="columns">
+        <div className="col">
+          <PermitCard app={app} />
+          <AgentPanel app={app} />
+        </div>
+        <div className="col">
+          <Approvals app={app} />
+          <Activity app={app} />
+          <Reputation app={app} />
+        </div>
+      </div>
+
+      {inspector ? <Inspector app={app} /> : null}
+    </div>
+  );
 }
 
 export default function App() {
-  const [cuenta, setCuenta] = useState<Cuenta | null>(null);
-  const [segundos, setSegundos] = useState<string | null>(null);
-  const [resultado, setResultado] = useState<Resultado | null>(null);
-  const [ocupado, setOcupado] = useState(false);
-  const [error, setError] = useState('');
+  const app = useAval();
+  const [inspector, setInspector] = useState(false);
 
-  const conEspera = async (tarea: () => Promise<void>) => {
-    setError('');
-    setOcupado(true);
-    try {
-      await tarea();
-    } catch (e) {
-      setError(mensajeDeError(e));
-    } finally {
-      setOcupado(false);
-    }
-  };
-
-  const adoptar = (c: Cuenta, t0: number) => {
-    cuenta?.sesion.end();
-    setCuenta(c);
-    setResultado(null);
-    setSegundos(((performance.now() - t0) / 1000).toFixed(1));
-  };
-
-  const crear = () => conEspera(async () => {
-    const t0 = performance.now();
-    adoptar(await crearCuenta(`aval-${Date.now().toString(36)}`), t0);
-  });
-
-  const volverAEntrar = () => conEspera(async () => {
-    const t0 = performance.now();
-    adoptar(await entrar(), t0);
-  });
-
-  const aprobar = () => conEspera(async () => {
-    if (!cuenta?.clave) throw new Error('Primero crea la cuenta en este dispositivo para tener la clave P256.');
-    const accion = `Pagar 30 USDC al agente #1 · nonce ${crypto.getRandomValues(new Uint32Array(1))[0]}`;
-    const desafio = new Uint8Array(sha256(toBytes(accion), 'bytes'));
-    const aprobacion = await firmarAprobacion(cuenta.credentialId, desafio);
-    const { r, s, hash } = aprobacion;
-    const ultimo = (parseInt(hash.slice(-2), 16) ^ 0xff).toString(16).padStart(2, '0');
-    const hashAlterado = `${hash.slice(0, -2)}${ultimo}` as Hex;
-
-    const [valida, alterada] = await Promise.all([
-      verificarEnMonad(hash, r, s, cuenta.clave),
-      verificarEnMonad(hashAlterado, r, s, cuenta.clave),
-    ]);
-    setResultado({ accion, aprobacion, revision: revisarAprobacion(aprobacion, desafio), valida, alterada });
-  });
+  const showDashboard = (app.phase === 'in' || app.phase === 'locked') && app.snapshot;
 
   return (
-    <main>
-      <header>
-        <h1>Aval · prueba de P256 con Mera</h1>
-        <p>Comprueba si de una sola passkey sale la cuenta de Mera y una clave P256 que Monad verifica onchain.</p>
-      </header>
+    <>
+      <Header app={app} inspector={inspector} onInspector={() => setInspector((v) => !v)} />
+      <main id="contenido">
+        {showDashboard ? <Dashboard app={app} inspector={inspector} /> : app.phase === 'working' ? <Preparing app={app} /> : <Landing app={app} />}
+        {!showDashboard && inspector ? <Inspector app={app} /> : null}
+      </main>
 
-      <section>
-        <h2>1. Cuenta con una sola ceremonia</h2>
-        <div className="botones">
-          <button disabled={ocupado} onClick={crear}>Crear cuenta con passkey</button>
-          <button className="sec" disabled={ocupado} onClick={volverAEntrar}>Ya tengo passkey: entrar</button>
-        </div>
-        {cuenta && (
-          <dl>
-            <dt>Dirección (Mera)</dt><dd><code>{cuenta.direccion}</code></dd>
-            <dt>Ceremonias usadas</dt>
-            <dd className={cuenta.ceremonias === 1 ? 'ok' : 'aviso'}>
-              {cuenta.ceremonias} {cuenta.ceremonias === 1 ? '(cumple la regla de una sola ceremonia)' : '(el autenticador no dio PRF al crear; Mera hizo una aserción extra)'}
-            </dd>
-            <dt>Tiempo</dt><dd>{segundos} s</dd>
-            <dt>Clave P256 de la passkey</dt>
-            <dd>
-              {cuenta.clave
-                ? <><code>x {corto(cuenta.clave.x)}</code><br /><code>y {corto(cuenta.clave.y)}</code></>
-                : <span className="aviso">No disponible al entrar: en la versión final se leerá de la cadena.</span>}
-            </dd>
-          </dl>
-        )}
-      </section>
+      <div className="toast-zone" aria-live="polite">
+        {app.notice ? (
+          <div className={`toast toast-${app.notice.kind}`} role={app.notice.kind === 'error' ? 'alert' : 'status'} key={app.notice.id}>
+            <Icon name={app.notice.kind === 'ok' ? 'check' : app.notice.kind === 'error' ? 'alert' : 'info'} />
+            <span>{app.notice.text}</span>
+            <button type="button" className="toast-close" aria-label="Cerrar aviso" onClick={app.dismissNotice}>
+              <Icon name="x" size={16} />
+            </button>
+          </div>
+        ) : null}
+      </div>
 
-      <section>
-        <h2>2. Aprobar una acción y verificarla en Monad</h2>
-        <button disabled={ocupado || !cuenta?.clave} onClick={aprobar}>Aprobar pago de prueba con la passkey</button>
-        {resultado && (
-          <dl>
-            <dt>Acción firmada</dt><dd>{resultado.accion}</dd>
-            <dt>Precompile P256 de Monad</dt>
-            <dd className={resultado.valida ? 'ok' : 'mal'}>{resultado.valida ? 'Firma válida' : 'Firma rechazada'}</dd>
-            <dt>Con el hash alterado</dt>
-            <dd className={resultado.alterada ? 'mal' : 'ok'}>{resultado.alterada ? 'Aceptada (error grave)' : 'Rechazada, como debe ser'}</dd>
-            <dt>Desafío = hash de la acción</dt><dd className={resultado.revision.desafioCoincide ? 'ok' : 'mal'}>{resultado.revision.desafioCoincide ? 'Sí' : 'No'}</dd>
-            <dt>Tipo webauthn.get</dt><dd className={resultado.revision.tipoCorrecto ? 'ok' : 'mal'}>{resultado.revision.tipoCorrecto ? 'Sí' : 'No'}</dd>
-            <dt>Usuario presente y verificado</dt>
-            <dd className={resultado.revision.usuarioPresente && resultado.revision.usuarioVerificado ? 'ok' : 'mal'}>
-              {resultado.revision.usuarioPresente ? 'presente' : 'no presente'} · {resultado.revision.usuarioVerificado ? 'verificado' : 'no verificado'}
-            </dd>
-            <dt>Origen</dt><dd><code>{resultado.revision.origen}</code></dd>
-            <dt>Firma</dt><dd><code>r {corto(resultado.aprobacion.r)}</code><br /><code>s {corto(resultado.aprobacion.s)}</code></dd>
-          </dl>
-        )}
-      </section>
-
-      {ocupado && <p className="estado">Esperando la passkey o la red…</p>}
-      {error && <p className="error" role="alert">{error}</p>}
-    </main>
+      <footer className="footer">
+        <p>
+          Aval · confianza para agentes de IA en Monad testnet. Todo el dinero es de prueba.{' '}
+          <a href="https://github.com/Alan021011/Aval" target="_blank" rel="noreferrer">
+            Código en GitHub
+          </a>
+        </p>
+      </footer>
+    </>
   );
 }

@@ -11,6 +11,8 @@
     "test:sdk": "npm test -w @aval/sdk",
     "build:sdk": "npm run build -w @aval/sdk",
     "dev:relayer": "npm run dev -w @aval/relayer",
-    "test:relayer": "npm test -w @aval/relayer"
+    "test:relayer": "npm test -w @aval/relayer",
+    "build:demo": "npm run build -w @aval/demo",
+    "test:demo": "npm test -w @aval/demo"
   }
 }

@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run"
   },
   "dependencies": {
     "@category-labs/mera": "^0.2.0",
@@ -14,7 +15,8 @@
     "@scure/bip39": "^2.4.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "viem": "^2.57.3"
+    "viem": "^2.57.3",
+    "@aval/sdk": "*"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",

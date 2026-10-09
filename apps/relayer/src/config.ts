@@ -6,7 +6,14 @@ import { type Limits, defaultLimits } from './limits.js';
 const env = z.object({
   /** Clave de la cuenta que paga el gas. Solo para testnet, nunca una cuenta con fondos reales. */
   RELAYER_PRIVATE_KEY: z.string().regex(/^0x[0-9a-fA-F]{64}$/, 'RELAYER_PRIVATE_KEY debe ser 0x + 64 hex'),
-  RPC_URL: z.string().url().default('https://testnet-rpc.monad.xyz'),
+  /** Uno o varios RPC separados por comas, en orden de preferencia: si uno falla se usa el siguiente. */
+  RPC_URL: z
+    .string()
+    .default('https://testnet-rpc.monad.xyz,https://rpc-testnet.monadinfra.com,https://monad-testnet.drpc.org')
+    .refine(
+      (v) => v.split(',').every((u) => /^https?:\/\/\S+$/.test(u.trim())),
+      'RPC_URL debe ser una o varias URL separadas por comas',
+    ),
   PORT: z.coerce.number().int().min(1).max(65535).default(8787),
   ALLOWED_ORIGINS: z.string().default('http://localhost:5173,http://localhost:5180'),
   TRUST_PROXY: z.enum(['true', 'false']).default('false'),
@@ -27,7 +34,7 @@ const env = z.object({
 
 export type ServerConfig = {
   privateKey: `0x${string}`;
-  rpcUrl: string;
+  rpcUrls: string[];
   port: number;
   allowedOrigins: string[];
   trustProxy: boolean;
@@ -56,7 +63,7 @@ export function loadConfig(source: Record<string, string | undefined> = process.
 
   return {
     privateKey: e.RELAYER_PRIVATE_KEY as `0x${string}`,
-    rpcUrl: e.RPC_URL,
+    rpcUrls: e.RPC_URL.split(',').map((u) => u.trim()).filter(Boolean),
     port: e.PORT,
     allowedOrigins: e.ALLOWED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean),
     trustProxy: e.TRUST_PROXY === 'true',
