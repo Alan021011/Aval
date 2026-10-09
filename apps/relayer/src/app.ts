@@ -5,11 +5,14 @@ import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
 import { ZodError } from 'zod';
 import { type Limits, RelayerError } from './limits.js';
+import type { DemoAgent } from './agent.js';
 import { type Relayer, briefly } from './relayer.js';
-import { faucetSchema, isRelayKind, schemas } from './schemas.js';
+import { agentReviewSchema, agentSpendSchema, faucetSchema, isRelayKind, schemas } from './schemas.js';
 
 export type AppOptions = {
   relayer: Relayer;
+  /** Agente de demostración. Si no se configura, sus rutas responden 404. */
+  agent?: DemoAgent;
   limits: Limits;
   /** Orígenes del navegador que pueden llamar al relayer. */
   allowedOrigins: string[];
@@ -38,7 +41,7 @@ function clientIp(c: Context, trustProxy: boolean): string {
   return incoming?.socket?.remoteAddress ?? 'unknown';
 }
 
-export function createApp({ relayer, limits, allowedOrigins, trustProxy = false }: AppOptions) {
+export function createApp({ relayer, agent, limits, allowedOrigins, trustProxy = false }: AppOptions) {
   const app = new Hono();
 
   app.use(
@@ -99,6 +102,45 @@ export function createApp({ relayer, limits, allowedOrigins, trustProxy = false 
         return fail(c, asRelayerError(error));
       }
     },
+  );
+
+  // ---- Agente de demostración ----
+
+  const tooLarge = bodyLimit({
+    maxSize: limits.maxBodyBytes,
+    onError: (c) => fail(c, new RelayerError(413, 'BodyTooLarge', 'La solicitud es demasiado grande.')),
+  });
+  const disabled = (c: Context) =>
+    fail(c, new RelayerError(404, 'DemoAgentDisabled', 'Este relayer no tiene un agente de demostración.'));
+
+  /** Valida el cuerpo con su esquema y ejecuta la acción del agente, traduciendo los errores a respuestas seguras. */
+  async function agentAction<T extends { parse(data: unknown): unknown }>(
+    c: Context,
+    schema: T,
+    run: (input: ReturnType<T['parse']>, ip: string) => Promise<unknown>,
+  ) {
+    let input: ReturnType<T['parse']>;
+    try {
+      input = schema.parse(deserialize(await c.req.text())) as ReturnType<T['parse']>;
+    } catch (error) {
+      return fail(c, badRequest(error));
+    }
+    try {
+      return json(c, await run(input, clientIp(c, trustProxy)));
+    } catch (error) {
+      return fail(c, asRelayerError(error));
+    }
+  }
+
+  app.get('/agent/info', async (c) => (agent ? json(c, await agent.info()) : disabled(c)));
+  app.post('/agent/spend', tooLarge, (c) =>
+    agent ? agentAction(c, agentSpendSchema, (input, ip) => agent.spend(input, { ip })) : disabled(c),
+  );
+  app.post('/agent/request', tooLarge, (c) =>
+    agent ? agentAction(c, agentSpendSchema, (input, ip) => agent.request(input, { ip })) : disabled(c),
+  );
+  app.post('/agent/review', tooLarge, (c) =>
+    agent ? agentAction(c, agentReviewSchema, (input, ip) => agent.review(input, { ip })) : disabled(c),
   );
 
   app.notFound((c) => fail(c, new RelayerError(404, 'NotFound', 'Ruta desconocida.')));

@@ -87,6 +87,18 @@ Dentro de este monorepo ya está disponible como workspace (`packages/sdk`).
 | `summary(agentId, { tag1?, tag2?, minPaid?, verifier? })` | `{ count, value, decimals, verifiedClients }` contando solo clientes con recibo. `minPaid` exige un pago mínimo. `verifier` es un contrato que decide quién es una persona verificada. |
 | `clients(agentId, { minPaid?, verifier? })` | Las cuentas que cuentan. |
 
+### `aval.agents` y `aval.reputation.review`
+
+Registro de agentes en ERC-8004 (los registros oficiales de Monad ya están desplegados):
+
+| Método | Qué hace |
+|---|---|
+| `agents.register({ uri? })` | Registra un agente: la cuenta que envía queda como su dueño y su billetera. Devuelve `{ agentId }`. Los pagos que reciba esa billetera son los que cuentan para su reputación verificada. |
+| `agents.walletOf(agentId)` | Billetera registrada del agente. |
+| `agents.review(agentId, { value, tag1? })` | Deja una reseña. Solo cuenta en la reputación verificada si quien reseña (o su dueño) le pagó al agente con AgentPermit. Usa una escala de 0 a 100: el promedio de ERC-8004 se trunca a enteros. |
+
+`agentCardUri({ name, description })` arma el `data:` URI de la tarjeta del agente, para registrarlo sin alojar ningún archivo.
+
 ### `aval.tokens`
 
 Para que el usuario no necesite MON: `signPermit({ value })` → `relayPermit(signed)` autoriza a AgentPermit con una firma (ERC-2612). También `approve`, `balanceOf` y `faucet` (hasta 1.000 tUSD, solo testnet).
@@ -103,7 +115,7 @@ await relayer.grant(await aval.permits.signGrant({ agent, ... }));       // crea
 await relayer.approve(requestId, await aval.permits.signApproval(requestId));
 ```
 
-Métodos: `health`, `register`, `grant`, `revoke`, `tokenPermit`, `approve`, `faucet`. Los errores llegan como `AvalError` (por ejemplo `RateLimited`, `TokenNotAllowed`). `serialize` y `deserialize` conservan los `bigint` al enviar JSON.
+Métodos: `health`, `register`, `grant`, `revoke`, `tokenPermit`, `approve`, `faucet` y `agent.info` / `agent.spend` / `agent.request` / `agent.review` (el agente de demostración del relayer). Los errores llegan como `AvalError` (por ejemplo `RateLimited`, `TokenNotAllowed`). `serialize` y `deserialize` conservan los `bigint` al enviar JSON.
 
 ### Passkeys y WebAuthn
 

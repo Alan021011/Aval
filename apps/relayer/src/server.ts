@@ -2,7 +2,7 @@ import { serve } from '@hono/node-server';
 import { formatEther } from 'viem';
 import { createFromEnv } from './bootstrap.js';
 
-const { app, config, account, publicClient } = createFromEnv();
+const { app, config, account, publicClient, demoAgent } = createFromEnv();
 
 serve({ fetch: app.fetch, port: config.port }, async () => {
   const balance = await publicClient.getBalance({ address: account.address });
@@ -11,5 +11,9 @@ serve({ fetch: app.fetch, port: config.port }, async () => {
   console.log(`  saldo:   ${formatEther(balance)} MON`);
   console.log(`  mínimo:  ${formatEther(config.limits.minBalanceWei)} MON (por debajo deja de enviar)`);
   console.log(`  orígenes permitidos: ${config.allowedOrigins.join(', ')}`);
+  if (demoAgent) {
+    const info = await demoAgent.info();
+    console.log('  agente de demostración: ' + info.address + ' (' + info.balance + ' MON) → servicio ' + info.service.address + ' #' + info.service.agentId);
+  }
   if (balance < config.limits.minBalanceWei) console.warn('  AVISO: el saldo está por debajo del mínimo; no enviará nada.');
 });

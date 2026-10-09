@@ -72,3 +72,21 @@ export const schemas = {
 
 export type RelayKind = keyof typeof schemas;
 export const isRelayKind = (value: string): value is RelayKind => value in schemas;
+
+// ---- Agente de demostración ----
+
+const amount = z.bigint().min(1n).max((1n << 128n) - 1n);
+/** Referencia corta del pago; debe caber en 32 bytes cuando se guarde onchain. */
+const reference = z.string().max(32).regex(/^[\w .:#-]*$/, 'Solo letras, números y .:#-_ ');
+
+export const agentSpendSchema = z.strictObject({
+  permitId: uint(64),
+  amount,
+  ref: reference.optional(),
+});
+
+export const agentReviewSchema = z.strictObject({
+  /** Escala de 0 a 100: el promedio de ERC-8004 se trunca a enteros. */
+  value: z.number().int().min(0).max(100),
+  tag: z.string().min(1).max(32).regex(/^[a-z]+$/).optional(),
+});

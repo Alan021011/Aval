@@ -1,6 +1,7 @@
 import { monadTestnet } from '@aval/sdk';
 import { createPublicClient, createWalletClient, defineChain, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
+import { createDemoAgent } from './agent.js';
 import { createApp } from './app.js';
 import { type ServerConfig, loadConfig } from './config.js';
 import { createRelayer } from './relayer.js';
@@ -19,12 +20,27 @@ export function createFromEnv(source: Record<string, string | undefined> = proce
   const walletClient = createWalletClient({ account, chain, transport: http(config.rpcUrl) });
 
   const relayer = createRelayer({ publicClient, walletClient, addresses: monadTestnet, limits: config.limits });
+  const demoAgent = config.demoAgent
+    ? createDemoAgent({
+        publicClient,
+        walletClient: createWalletClient({
+          account: privateKeyToAccount(config.demoAgent.privateKey),
+          chain,
+          transport: http(config.rpcUrl),
+        }),
+        addresses: monadTestnet,
+        limits: config.limits,
+        service: config.demoAgent.service,
+      })
+    : undefined;
+
   const app = createApp({
     relayer,
+    agent: demoAgent,
     limits: config.limits,
     allowedOrigins: config.allowedOrigins,
     trustProxy: config.trustProxy,
   });
 
-  return { app, relayer, config, account, publicClient };
+  return { app, relayer, demoAgent, config, account, publicClient };
 }

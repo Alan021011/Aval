@@ -14,6 +14,7 @@ import {
 } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { simulatedPasskey, startAnvil } from '../../../packages/sdk/test/helpers.js';
+import { createDemoAgent } from '../src/agent.js';
 import { createApp } from '../src/app.js';
 import { type Limits, defaultLimits } from '../src/limits.js';
 import { createRelayer } from '../src/relayer.js';
@@ -34,6 +35,7 @@ const chain = defineChain({
 
 const relayerKey = generatePrivateKey();
 const agentKey = generatePrivateKey();
+const serviceKey = generatePrivateKey();
 const publicClient = createPublicClient({ chain, transport: http(RPC) });
 const wallet = (key: `0x${string}`) => createWalletClient({ account: privateKeyToAccount(key), chain, transport: http(RPC) });
 const newUser = () => wallet(generatePrivateKey());
@@ -71,6 +73,7 @@ beforeAll(async () => {
     const test = createTestClient({ chain, mode: 'anvil', transport: http(RPC) });
     await test.setBalance({ address: privateKeyToAccount(relayerKey).address, value: parseEther('100') });
     await test.setBalance({ address: privateKeyToAccount(agentKey).address, value: parseEther('100') });
+    await test.setBalance({ address: privateKeyToAccount(serviceKey).address, value: parseEther('100') });
   }
 }, 120_000);
 
@@ -402,5 +405,176 @@ describe('choques de nonce entre instancias (como en funciones serverless)', () 
     );
 
     expect(results.filter((r) => r !== null)).toHaveLength(0);
+  });
+});
+
+describe('agente de demostración', () => {
+  const serviceAddress = privateKeyToAccount(serviceKey).address;
+  const agentAddress = privateKeyToAccount(agentKey).address;
+  let serviceAgentId = 0n;
+
+  /** Un relayer con agente de demostración. El servicio se registra una sola vez en ERC-8004. */
+  async function setupAgent(overrides: Partial<Limits> = {}) {
+    if (serviceAgentId === 0n) {
+      const registered = await createAval({ publicClient, walletClient: wallet(serviceKey) }).agents.register();
+      serviceAgentId = registered.agentId;
+    }
+    const limits = { ...generous, ...overrides };
+    const relayer = createRelayer({ publicClient, walletClient: wallet(relayerKey), addresses: monadTestnet, limits });
+    const agent = createDemoAgent({
+      publicClient,
+      walletClient: wallet(agentKey),
+      addresses: monadTestnet,
+      limits,
+      service: { address: serviceAddress, agentId: serviceAgentId },
+    });
+    const app = createApp({ relayer, agent, limits, allowedOrigins: [], trustProxy: true });
+    const client = createRelayerClient({
+      url: 'http://relayer.test',
+      fetch: ((url: string, init: RequestInit) =>
+        app.request(url, {
+          ...init,
+          headers: { ...(init.headers as Record<string, string>), 'x-forwarded-for': '10.8.0.1' },
+        })) as never,
+    });
+    return { app, client };
+  }
+
+  /** Un usuario sin MON con un permiso para el agente de demostración, todo creado a través del relayer. */
+  async function userWithPermit(client: ReturnType<typeof createRelayerClient>) {
+    const user = newUser();
+    const passkey = simulatedPasskey();
+    const aval = createAval({ publicClient, walletClient: user, assertionProvider: passkey.provider });
+    // El faucet del relayer limita por IP; para no depender de ese límite se da saldo directo desde el contrato.
+    await createAval({ publicClient, walletClient: wallet(relayerKey) }).tokens.faucet({
+      to: user.account.address,
+      amount: 500_000_000n,
+    });
+    await client.register(await aval.passkeys.signRegister(passkey.key));
+    await client.tokenPermit(await aval.tokens.signPermit({ value: 300_000_000n }));
+    const { permitId } = await client.grant(
+      await aval.permits.signGrant({
+        agent: agentAddress,
+        maxPerSpend: 100_000_000n,
+        maxTotal: 300_000_000n,
+        approvalThreshold: 50_000_000n,
+        expiresIn: 3600,
+        recipients: [serviceAddress],
+      }),
+    );
+    return { user, aval, permitId };
+  }
+
+  it('informa su dirección, su saldo y el servicio al que le paga', async (ctx) => {
+    needAnvil(ctx);
+    const { client } = await setupAgent();
+    const info = await client.agent.info();
+
+    expect(info.address).toBe(agentAddress);
+    expect(info.service).toEqual({ address: serviceAddress, agentId: serviceAgentId });
+    expect(info.ready).toBe(true);
+    expect(info.token).toBe(TUSD);
+  });
+
+  it('flujo completo: paga dentro del límite, se topa con los límites, pide aprobación y recibe una reseña', async (ctx) => {
+    needAnvil(ctx);
+    const { client } = await setupAgent();
+    const { user, aval, permitId } = await userWithPermit(client);
+    const owner = user.account.address;
+    const balanceOfService = () => aval.tokens.balanceOf(serviceAddress);
+    const before = await balanceOfService();
+
+    // 1. Un pago pequeño pasa sin aprobación.
+    await client.agent.spend({ permitId, amount: 20_000_000n, ref: 'traduccion-1' });
+    expect((await balanceOfService()) - before).toBe(20_000_000n);
+
+    // 2. Pasarse del máximo por pago lo rechaza el contrato, con un mensaje claro y sin gastar.
+    const tooMuch = await errorOf(client.agent.spend({ permitId, amount: 150_000_000n }));
+    expect(tooMuch?.code).toBe('ExceedsPerSpendLimit');
+
+    // 3. Sobre el umbral de aprobación, el pago directo se rechaza y el agente debe pedir permiso.
+    const direct = await errorOf(client.agent.spend({ permitId, amount: 80_000_000n }));
+    expect(direct?.code).toBe('NeedsApproval');
+    const { requestId } = await client.agent.request({ permitId, amount: 80_000_000n, ref: 'traduccion-grande' });
+    expect((await aval.permits.getRequest(requestId)).status).toBe(1);
+    expect((await balanceOfService()) - before).toBe(20_000_000n);
+
+    // 4. El usuario aprueba con su huella y el relayer envía la aprobación.
+    await client.approve(requestId, await aval.permits.signApproval(requestId));
+    expect((await balanceOfService()) - before).toBe(100_000_000n);
+
+    // 5. El agente reseña al servicio; cuenta porque ya le pagó.
+    await client.agent.review({ value: 90 });
+    const summary = await aval.reputation.summary(serviceAgentId, { tag1: 'calidad' });
+    expect(summary.value).toBe(90n);
+    expect(summary.verifiedClients).toBeGreaterThanOrEqual(2n);
+
+    // 6. Todo queda en el historial del usuario, reconstruido solo desde la cadena.
+    const receipts = await createAval({ publicClient }).permits.receiptsOf(owner);
+    expect(receipts.map((r) => r.amount)).toEqual([20_000_000n, 80_000_000n]);
+    expect(receipts[1]!.requestId).toBe(requestId);
+  });
+
+  it('el agente solo gasta con permisos que el usuario le dio a su cuenta', async (ctx) => {
+    needAnvil(ctx);
+    const { client } = await setupAgent();
+    const wallet2 = newUser();
+    const user = createAval({ publicClient, walletClient: wallet2 });
+    await createAval({ publicClient, walletClient: wallet(relayerKey) }).tokens.faucet({
+      to: wallet2.account.address,
+      amount: 10_000_000n,
+    });
+    await client.tokenPermit(await user.tokens.signPermit({ value: 10_000_000n }));
+    // Un permiso para OTRO agente: el agente de demostración no puede usarlo.
+    const stranger = privateKeyToAccount(generatePrivateKey()).address;
+    const { permitId } = await client.grant(
+      await user.permits.signGrant({
+        agent: stranger,
+        maxPerSpend: 10_000_000n,
+        maxTotal: 10_000_000n,
+        approvalThreshold: null,
+        expiresIn: 3600,
+      }),
+    );
+
+    expect((await errorOf(client.agent.spend({ permitId, amount: 1_000_000n })))?.code).toBe('NotAgent');
+  });
+
+  it('rechaza solicitudes mal formadas del agente', async (ctx) => {
+    needAnvil(ctx);
+    const { app } = await setupAgent();
+    const post = (path: string, body: unknown) =>
+      app.request(`http://relayer.test${path}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: typeof body === 'string' ? body : serialize(body),
+      });
+
+    expect((await post('/agent/spend', { permitId: 1n, amount: 0n })).status).toBe(400);
+    expect((await post('/agent/spend', { permitId: 1n, amount: 5n, ref: 'x'.repeat(40) })).status).toBe(400);
+    // No hay forma de elegir a quién se le paga: un campo `to` se rechaza.
+    expect((await post('/agent/spend', { permitId: 1n, amount: 5n, to: '0x0000000000000000000000000000000000000001' })).status).toBe(400);
+    expect((await post('/agent/review', { value: 101 })).status).toBe(400);
+    expect((await post('/agent/review', { value: 50, tag: 'DROP TABLE' })).status).toBe(400);
+    expect((await post('/agent/spend', 'basura')).status).toBe(400);
+  });
+
+  it('sin agente configurado, sus rutas responden 404', async (ctx) => {
+    needAnvil(ctx);
+    const { app } = setup();
+    const info = await app.request('http://relayer.test/agent/info');
+    const spend = await app.request('http://relayer.test/agent/spend', { method: 'POST', body: '{}' });
+
+    expect(info.status).toBe(404);
+    expect(spend.status).toBe(404);
+    expect((await info.json()).error.code).toBe('DemoAgentDisabled');
+  });
+
+  it('se detiene cuando al agente le queda poco gas', async (ctx) => {
+    needAnvil(ctx);
+    const { client } = await setupAgent({ agentMinBalanceWei: parseEther('1000000') });
+
+    expect((await errorOf(client.agent.spend({ permitId: 1n, amount: 1n })))?.code).toBe('RelayerLowBalance');
+    expect((await client.agent.info()).ready).toBe(false);
   });
 });

@@ -10,6 +10,8 @@ export type Limits = {
   maxTransactionsPerDay: number;
   /** Si el saldo baja de esto, el relayer deja de enviar y avisa, en vez de vaciarse. */
   minBalanceWei: bigint;
+  /** Igual, para la cuenta del agente de demostración, que gasta mucho menos gas que el relayer. */
+  agentMinBalanceWei: bigint;
   /** Tokens con los que el relayer acepta trabajar. */
   allowedTokens: Address[];
   /** Tamaño máximo de una solicitud. */
@@ -86,6 +88,7 @@ export const defaultLimits = (allowedTokens: Address[]): Limits => ({
   perOwnerPerMinute: 10,
   maxTransactionsPerDay: 2000,
   minBalanceWei: 500_000_000_000_000_000n, // 0,5 MON
+  agentMinBalanceWei: 50_000_000_000_000_000n, // 0,05 MON
   allowedTokens,
   maxBodyBytes: 16 * 1024,
   faucetAmount: 500_000_000n, // 500 tUSD

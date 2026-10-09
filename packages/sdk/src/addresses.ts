@@ -8,6 +8,9 @@ export type AvalAddresses = {
   reputationReader: Address;
   /** Dólar de prueba, el token por defecto para los permisos. Opcional en otras redes. */
   testUsd?: Address;
+  /** Registros oficiales de ERC-8004 (agentes y reputación). Opcionales en otras redes. */
+  identityRegistry?: Address;
+  reputationRegistry?: Address;
 };
 
 /** Registros ERC-8004 oficiales de Monad testnet. */
@@ -23,6 +26,8 @@ export const monadTestnet: AvalAddresses = {
   agentPermit: '0x00F0C1b1FB751c380dF0132001eab6ca110Fc2DA',
   reputationReader: '0x831EeA5808B40C2f1fE49d817B056D3d54E685D6',
   testUsd: '0xeD4Bb1e1926441461BcADA4BBF647Aba8574B3C5',
+  identityRegistry: erc8004MonadTestnet.identityRegistry,
+  reputationRegistry: erc8004MonadTestnet.reputationRegistry,
 };
 
 /** Precompile P256 de Monad (EIP-7951). */

@@ -20,6 +20,16 @@ export type RelayerHealth = {
   transactionsToday: number;
 };
 
+/** Datos del agente de demostración de un relayer. `ready` es falso si se quedó sin gas. */
+export type DemoAgentInfo = {
+  address: Address;
+  /** Servicio al que el agente le paga: un agente de ERC-8004 cuya billetera recibe los pagos. */
+  service: { address: Address; agentId: bigint };
+  token?: Address;
+  balance: string;
+  ready: boolean;
+};
+
 /**
  * Cliente de un relayer de Aval: le envías lo que el usuario firmó y él paga el gas, así el usuario no necesita MON.
  * El relayer nunca recibe claves privadas, solo firmas que no sirven para nada distinto a lo firmado.
@@ -64,6 +74,21 @@ export function createRelayerClient(options: { url: string; fetch?: RelayerFetch
     tokenPermit: (signed: SignedTokenPermit) => call<{ hash: Hash }>('POST', '/relay/token-permit', signed),
     /** Envía la aprobación con passkey de un gasto pendiente. */
     approve: (requestId: bigint, auth: WebAuthnAuth) => call<{ hash: Hash }>('POST', '/relay/approve', { requestId, auth }),
+    /**
+     * Agente de demostración del relayer: hace de agente de IA del usuario. El usuario le da un permiso (con su
+     * dirección `info().address` como agente) y estas acciones muestran qué hace el contrato en cada caso.
+     * Solo paga al servicio fijo que indica `info().service`.
+     */
+    agent: {
+      info: () => call<DemoAgentInfo>('GET', '/agent/info'),
+      /** Paga dentro del permiso. Si el monto supera el umbral o los límites, el contrato lo rechaza y el error lo explica. */
+      spend: (input: { permitId: bigint; amount: bigint; ref?: string }) => call<{ hash: Hash }>('POST', '/agent/spend', input),
+      /** Pide un pago que supera el umbral: queda pendiente hasta que el usuario lo apruebe con su huella. */
+      request: (input: { permitId: bigint; amount: bigint; ref?: string }) =>
+        call<{ hash: Hash; requestId: bigint }>('POST', '/agent/request', input),
+      /** Reseña al servicio (de 0 a 100). Solo cuenta en la reputación verificada si el agente ya le pagó. */
+      review: (input: { value: number; tag?: string }) => call<{ hash: Hash }>('POST', '/agent/review', input),
+    },
     /** Pide dólares de prueba (tUSD) para una dirección. Tiene tiempo de espera por dirección. */
     faucet: (to: Address) => call<{ hash: Hash; amount: bigint }>('POST', '/faucet', { to }),
   };

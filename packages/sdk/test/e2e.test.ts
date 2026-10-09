@@ -11,7 +11,7 @@ import {
   parseEther,
 } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
-import { type Aval, AvalError, createAval, erc8004MonadTestnet } from '../src/index.js';
+import { type Aval, AvalError, agentCardUri, createAval, erc8004MonadTestnet } from '../src/index.js';
 import { simulatedPasskey, startAnvil } from './helpers.js';
 
 /**
@@ -230,6 +230,40 @@ describe('flujo completo contra los contratos desplegados en Monad testnet', () 
     expect(summary.value).toBe(95n);
     expect(summary.verifiedClients).toBe(2n);
     expect(await as('agent').reputation.clients(agentId)).toContain(addressOf('agent'));
+  });
+
+  it('registra un agente en ERC-8004 y recibe una reseña, todo con el SDK', async (ctx) => {
+    needAnvil(ctx);
+    const service = as('service');
+    const { agentId } = await service.agents.register({
+      uri: agentCardUri({ name: 'Servicio de traducción (demo)', description: 'Agente de prueba que recibe pagos' }),
+    });
+    expect(await service.agents.walletOf(agentId)).toBe(addressOf('service'));
+
+    // Un cliente le paga al servicio con un permiso y su agente lo reseña con 80.
+    const ownerWallet = createWalletClient({ account: privateKeyToAccount(generatePrivateKey()), chain, transport: http(RPC) });
+    const owner2 = createAval({ publicClient, walletClient: ownerWallet });
+    await as('relayer').tokens.faucet({ to: ownerWallet.account.address, amount: 100_000_000n });
+    const grant = await owner2.permits.signGrant({
+      agent: addressOf('agent'),
+      maxPerSpend: 30_000_000n,
+      maxTotal: 30_000_000n,
+      approvalThreshold: null,
+      expiresIn: 3600,
+    });
+    await as('relayer').tokens.relayPermit(await owner2.tokens.signPermit({ value: 30_000_000n }));
+    const { permitId: paid } = await as('relayer').permits.relayGrant(grant);
+    await as('agent').permits.spend({ permitId: paid, to: addressOf('service'), amount: 30_000_000n });
+    await as('agent').agents.review(agentId, { value: 80, tag1: 'calidad' });
+
+    const summary = await as('agent').reputation.summary(agentId, { tag1: 'calidad' });
+    // Cuentan como clientes verificados todos los que le pagaron a la billetera del servicio: el dueño y el agente de
+    // esta prueba, más el dueño de la anterior (el agente es el mismo).
+    expect(summary).toMatchObject({ count: 1n, value: 80n, verifiedClients: 3n });
+
+    // ERC-8004 no deja que el dueño del agente se reseñe a sí mismo.
+    const selfReview = await service.agents.review(agentId, { value: 100, tag1: 'calidad' }).catch((e: unknown) => e);
+    expect(selfReview).toBeInstanceOf(Error);
   });
 
   it('prueba sin estado: un cliente nuevo, sin datos locales, reconstruye todo desde la cadena', async (ctx) => {

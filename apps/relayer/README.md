@@ -16,7 +16,30 @@ Solo envía cinco operaciones con los contratos de Aval. No envía datos arbitra
 | `POST /relay/revoke` | Revoca un permiso | EIP-712 `Revoke` |
 | `POST /relay/approve` | Ejecuta un gasto pendiente | Aprobación con passkey (P256) |
 | `POST /faucet` | Entrega tUSD de prueba | — |
+| `GET /agent/info` | Datos del agente de demostración (dirección, saldo, servicio al que paga) | — |
+| `POST /agent/spend` | El agente de demostración paga al servicio dentro del permiso | — |
+| `POST /agent/request` | El agente pide un pago que supera el umbral de aprobación | — |
+| `POST /agent/review` | El agente reseña al servicio (de 0 a 100) | — |
 | `GET /health` | Estado y saldo del relayer | — |
+
+## Agente de demostración
+
+Para mostrar el flujo completo alguien tiene que hacer de agente de IA: pagar dentro del límite, intentar pasarse, pedir una aprobación y reseñar al servicio. El relayer trae un **agente de demostración** con su propia cuenta de testnet (`AGENT_PRIVATE_KEY`) y su propio saldo mínimo. Es el "cuerpo" del agente: las acciones que luego usa el agente con Qwen para decidir.
+
+- **El usuario le da un permiso** al agente (con la dirección que devuelve `GET /agent/info` como `agent`) y el agente actúa con esos límites.
+- **Solo paga a un servicio fijo**, un agente registrado en ERC-8004 cuya billetera recibe los pagos. No hay ningún parámetro para elegir a quién pagar (una prueba comprueba que un campo `to` se rechaza).
+- **Solo usa permisos que un usuario le dio a su cuenta**: el contrato rechaza cualquier otro (`NotAgent`).
+- Comparte las mismas protecciones que el relayer: límites por IP y por usuario, tope diario, reintento ante choques de nonce y su **propia cola** de envío, porque es otra cuenta con su propio nonce.
+- Si no se configura `AGENT_PRIVATE_KEY`, sus rutas responden `404 DemoAgentDisabled`.
+- Con el SDK: `relayer.agent.info()`, `.spend()`, `.request()` y `.review()`.
+
+Prueba real del flujo completo contra un relayer en marcha (un usuario sin MON, con una passkey simulada para la aprobación):
+
+```bash
+node scripts/smoke-agent.mjs [url]
+```
+
+Comprueba que cada rechazo sea **con el código exacto esperado** (un fallo por falta de gas no cuenta como éxito) y termina con código de salida distinto de cero si algo no coincide.
 
 ## Cómo protege sus fondos
 

@@ -1,6 +1,7 @@
 import type { PublicClient, WalletClient } from 'viem';
 import { type AvalAddresses, monadTestnet } from './addresses.js';
 import type { Ctx } from './context.js';
+import { createAgents } from './erc8004.js';
 import { createPasskeys } from './passkeys.js';
 import { createPermits } from './permits.js';
 import { createReputation } from './reputation.js';
@@ -40,6 +41,7 @@ export function createAval(options: CreateAvalOptions) {
 
   return {
     addresses,
+    agents: createAgents(ctx),
     passkeys: createPasskeys(ctx),
     permits: createPermits(ctx),
     reputation: createReputation(ctx),
@@ -68,6 +70,8 @@ export {
 } from './webauthn.js';
 export type { AssertionProvider, PasskeyPublicKey, RawAssertion, WebAuthnAuth } from './webauthn.js';
 
+export { agentCardUri } from './erc8004.js';
+export type { AgentCard } from './erc8004.js';
 export { createRelayerClient } from './relayer-client.js';
-export type { RelayerClient, RelayerFetch, RelayerHealth } from './relayer-client.js';
+export type { DemoAgentInfo, RelayerClient, RelayerFetch, RelayerHealth } from './relayer-client.js';
 export { deserialize, serialize } from './wire.js';

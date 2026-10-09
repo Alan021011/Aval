@@ -6,6 +6,7 @@
   "rewrites": [
     { "source": "/health", "destination": "/api" },
     { "source": "/relay/:kind", "destination": "/api" },
-    { "source": "/faucet", "destination": "/api" }
+    { "source": "/faucet", "destination": "/api" },
+    { "source": "/agent/:action", "destination": "/api" }
   ]
 }
