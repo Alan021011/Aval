@@ -4,14 +4,23 @@
   "deployer": "0x9dc7B0c8C96A95ab02b839AF4af1bfB9831bAA73",
   "contracts": {
     "PasskeyRegistry": "0x0C46E673C0f852920e9F15902B0859358Eb53789",
-    "AgentPermit": "0x6d2A62614AF055921308c01745343413FCF8AA2C",
+    "AgentPermit": "0x00F0C1b1FB751c380dF0132001eab6ca110Fc2DA",
     "TestUSD": "0xeD4Bb1e1926441461BcADA4BBF647Aba8574B3C5",
-    "ReputationReader": "0x52231e5FC27CBe9B0D466b9A4EecF19B9705A7d3"
+    "ReputationReader": "0x831EeA5808B40C2f1fE49d817B056D3d54E685D6"
   },
   "external": {
     "ERC8004IdentityRegistry": "0x8004A818BFB912233c491871b3d84c89A494BD9e",
     "ERC8004ReputationRegistry": "0x8004B663056A597Dffe9eCcC1965A193B7388713",
     "P256Precompile": "0x0000000000000000000000000000000000000100"
   },
-  "explorer": "https://testnet.monadvision.com"
+  "explorer": "https://testnet.monadvision.com",
+  "previous": [
+    {
+      "replacedBecause": "Se agregaron listados por usuario y recibos onchain a AgentPermit (los RPC publicos limitan eth_getLogs a 100 bloques)",
+      "contracts": {
+        "AgentPermit": "0x6d2A62614AF055921308c01745343413FCF8AA2C",
+        "ReputationReader": "0x52231e5FC27CBe9B0D466b9A4EecF19B9705A7d3"
+      }
+    }
+  ]
 }

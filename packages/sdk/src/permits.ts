@@ -51,6 +51,18 @@ export type Permit = {
   };
 };
 
+/** Recibo de un pago hecho con un permiso, guardado onchain. */
+export type Receipt = {
+  to: Address;
+  permitId: bigint;
+  amount: bigint;
+  /** 0 si el gasto no necesitó aprobación. */
+  requestId: bigint;
+  /** Fecha UNIX en segundos. */
+  timestamp: bigint;
+  ref: Hex;
+};
+
 export type SpendRequest = {
   permitId: bigint;
   to: Address;
@@ -164,6 +176,29 @@ export function createPermits(ctx: Ctx) {
     const [log] = parseEventLogs({ abi: agentPermitAbi, logs: sent.receipt.logs, eventName: 'PermitGranted' });
     if (!log) throw new AvalError('NoEvent', 'No se encontró el evento PermitGranted en el recibo.');
     return log.args.permitId;
+  };
+
+  const get = (permitId: bigint) =>
+    read<Permit>(ctx, { address, abi: agentPermitAbi, functionName: 'getPermit', args: [permitId] });
+
+  /** Lee los últimos `limit` IDs de un índice por usuario: primero cuántos hay, luego la última página. */
+  const latest = async (
+    to: Address,
+    countFn: 'permitCountOf' | 'agentPermitCount' | 'requestCountOf',
+    idsFn: 'permitIdsOf' | 'agentPermitIds' | 'requestIdsOf',
+    who: Address,
+    limit = 50,
+  ): Promise<bigint[]> => {
+    const max = BigInt(limit);
+    const count = await read<bigint>(ctx, { address: to, abi: agentPermitAbi, functionName: countFn, args: [who] });
+    const offset = count > max ? count - max : 0n;
+    const ids = await read<readonly bigint[]>(ctx, {
+      address: to,
+      abi: agentPermitAbi,
+      functionName: idsFn,
+      args: [who, offset, max],
+    });
+    return [...ids];
   };
 
   const challenge = (requestId: bigint) =>
@@ -310,6 +345,49 @@ export function createPermits(ctx: Ctx) {
     },
 
     // ----------------------------------------------------------- consultas
+
+    // ----------------------------------------------------------- listados (sin indexador)
+    //
+    // Los RPC públicos de Monad limitan `eth_getLogs` a 100 bloques, así que el estado de un usuario no se puede
+    // reconstruir leyendo eventos. Los contratos guardan índices por usuario y por agente: estos métodos leen los
+    // últimos `limit` (50 por defecto), del más antiguo al más nuevo.
+
+    /** Permisos que un usuario ha dado, con su ID. */
+    async listByOwner(owner: Address, options: { limit?: number } = {}): Promise<{ permitId: bigint; permit: Permit }[]> {
+      const ids = await latest(address, 'permitCountOf', 'permitIdsOf', owner, options.limit);
+      return Promise.all(ids.map(async (permitId) => ({ permitId, permit: await get(permitId) })));
+    },
+
+    /** Permisos que le dieron a un agente, con su ID. */
+    async listByAgent(agent: Address, options: { limit?: number } = {}): Promise<{ permitId: bigint; permit: Permit }[]> {
+      const ids = await latest(address, 'agentPermitCount', 'agentPermitIds', agent, options.limit);
+      return Promise.all(ids.map(async (permitId) => ({ permitId, permit: await get(permitId) })));
+    },
+
+    /** Pedidos de gasto sobre los permisos de un usuario (pendientes, ejecutados o vencidos), con su ID. */
+    async requestsOf(owner: Address, options: { limit?: number } = {}): Promise<{ requestId: bigint; request: SpendRequest }[]> {
+      const ids = await latest(address, 'requestCountOf', 'requestIdsOf', owner, options.limit);
+      return Promise.all(
+        ids.map(async (requestId) => ({
+          requestId,
+          request: await read<SpendRequest>(ctx, { address, abi: agentPermitAbi, functionName: 'getRequest', args: [requestId] }),
+        })),
+      );
+    },
+
+    /** Recibos de los pagos de un usuario. */
+    async receiptsOf(owner: Address, options: { limit?: number } = {}): Promise<Receipt[]> {
+      const limit = BigInt(options.limit ?? 50);
+      const count = await read<bigint>(ctx, { address, abi: agentPermitAbi, functionName: 'receiptCountOf', args: [owner] });
+      const offset = count > limit ? count - limit : 0n;
+      const raw = await read<readonly Receipt[]>(ctx, {
+        address,
+        abi: agentPermitAbi,
+        functionName: 'receiptsOf',
+        args: [owner, offset, limit],
+      });
+      return raw.map((r) => ({ ...r }));
+    },
 
     async get(permitId: bigint): Promise<Permit> {
       return read<Permit>(ctx, { address, abi: agentPermitAbi, functionName: 'getPermit', args: [permitId] });

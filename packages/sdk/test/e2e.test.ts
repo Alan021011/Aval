@@ -232,6 +232,40 @@ describe('flujo completo contra los contratos desplegados en Monad testnet', () 
     expect(await as('agent').reputation.clients(agentId)).toContain(addressOf('agent'));
   });
 
+  it('prueba sin estado: un cliente nuevo, sin datos locales, reconstruye todo desde la cadena', async (ctx) => {
+    needAnvil(ctx);
+    // Un cliente recién creado: no recibe ningún dato de los pasos anteriores, solo la dirección del usuario.
+    const fresh = createAval({ publicClient });
+    const ownerAddress = addressOf('owner');
+
+    expect(await fresh.passkeys.keyOf(ownerAddress)).toEqual(passkey.key);
+    expect(await fresh.tokens.balanceOf(ownerAddress)).toBeGreaterThan(0n);
+
+    const permitsOfOwner = await fresh.permits.listByOwner(ownerAddress);
+    expect(permitsOfOwner.map((p) => p.permitId)).toContain(permitId);
+    const found = permitsOfOwner.find((p) => p.permitId === permitId)!;
+    expect(found.permit.terms.agent).toBe(addressOf('agent'));
+    expect(found.permit.spent).toBe(90_000_000n);
+
+    // El agente ve los mismos permisos desde su lado.
+    expect((await fresh.permits.listByAgent(addressOf('agent'))).map((p) => p.permitId)).toContain(permitId);
+
+    // Los pedidos: el grande quedó ejecutado, el de otra passkey sigue pendiente.
+    const requests = await fresh.permits.requestsOf(ownerAddress);
+    expect(requests.map((r) => r.request.status).sort()).toEqual([1, 2]);
+
+    // El historial de pagos, con cada recibo.
+    const receipts = await fresh.permits.receiptsOf(ownerAddress);
+    expect(receipts.map((r) => r.amount)).toEqual([10_000_000n, 80_000_000n, 20_000_000n]);
+    expect(receipts[0]).toMatchObject({ to: shop, permitId, requestId: 0n });
+    expect(receipts[1]!.requestId).toBeGreaterThan(0n);
+
+    // Un usuario sin nada no devuelve nada ni falla.
+    const nobody = addressOf('sybil');
+    expect(await fresh.permits.listByOwner(nobody)).toEqual([]);
+    expect(await fresh.permits.receiptsOf(nobody)).toEqual([]);
+  });
+
   it('el usuario revoca con una firma y el permiso deja de funcionar', async (ctx) => {
     needAnvil(ctx);
     const signed = await as('owner').permits.signRevoke(permitId);

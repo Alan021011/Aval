@@ -307,6 +307,86 @@ contract AgentPermitTest is PasskeyTestBase {
         permits.approveSpend(requestId, auth);
     }
 
+    // ---------------------------------------------------------------- listados por usuario
+
+    function test_ListsPermitsByOwnerAndByAgent() public {
+        uint256 first = _grantDefault();
+        uint256 second = _grantDefault();
+
+        assertEq(permits.permitCountOf(owner), 2);
+        uint256[] memory ids = permits.permitIdsOf(owner, 0, 10);
+        assertEq(ids.length, 2);
+        assertEq(ids[0], first);
+        assertEq(ids[1], second);
+
+        assertEq(permits.agentPermitCount(agent), 2);
+        assertEq(permits.agentPermitIds(agent, 1, 10)[0], second);
+        assertEq(permits.permitCountOf(makeAddr("nadie")), 0);
+    }
+
+    function test_PaginationIsSafeAtTheEdges() public {
+        _grantDefault();
+        _grantDefault();
+        _grantDefault();
+
+        assertEq(permits.permitIdsOf(owner, 0, 2).length, 2);
+        assertEq(permits.permitIdsOf(owner, 2, 2).length, 1, "la ultima pagina es parcial");
+        assertEq(permits.permitIdsOf(owner, 3, 2).length, 0, "pasado el final no hay nada");
+        assertEq(permits.permitIdsOf(owner, 999, 5).length, 0);
+        assertEq(permits.permitIdsOf(owner, 0, 0).length, 0);
+        assertEq(permits.permitIdsOf(owner, 1, type(uint256).max).length, 2, "un limite enorme no desborda");
+    }
+
+    function test_ListsRequestsOfAnOwnerWithTheirStatus() public {
+        uint256 id = _grantDefault();
+        vm.startPrank(agent);
+        uint256 pending = permits.requestSpend(id, shop, 60e6, "a");
+        uint256 toApprove = permits.requestSpend(id, shop, 70e6, "b");
+        vm.stopPrank();
+        permits.approveSpend(toApprove, _approve(passkeyPk, toApprove));
+
+        uint256[] memory ids = permits.requestIdsOf(owner, 0, 10);
+        assertEq(permits.requestCountOf(owner), 2);
+        assertEq(ids[0], pending);
+        assertEq(uint8(permits.getRequest(ids[0]).status), uint8(AgentPermit.RequestStatus.Pending));
+        assertEq(uint8(permits.getRequest(ids[1]).status), uint8(AgentPermit.RequestStatus.Executed));
+    }
+
+    function test_RecordsReceiptsForDirectAndApprovedSpends() public {
+        vm.warp(1_800_000_000);
+        uint256 id = _grantDefault();
+
+        vm.prank(agent);
+        permits.spend(id, shop, 10e6, "directo");
+        vm.prank(agent);
+        uint256 requestId = permits.requestSpend(id, shop, 80e6, "aprobado");
+        permits.approveSpend(requestId, _approve(passkeyPk, requestId));
+
+        assertEq(permits.receiptCountOf(owner), 2);
+        AgentPermit.Receipt[] memory all = permits.receiptsOf(owner, 0, 10);
+        assertEq(all[0].to, shop);
+        assertEq(all[0].permitId, id);
+        assertEq(all[0].amount, 10e6);
+        assertEq(all[0].requestId, 0, "el gasto directo no tiene pedido");
+        assertEq(all[0].timestamp, 1_800_000_000);
+        assertEq(all[0].ref, bytes32("directo"));
+        assertEq(all[1].amount, 80e6);
+        assertEq(all[1].requestId, requestId);
+
+        assertEq(permits.receiptsOf(owner, 1, 10).length, 1);
+        assertEq(permits.receiptsOf(owner, 2, 10).length, 0);
+        assertEq(permits.receiptCountOf(makeAddr("otro-usuario")), 0);
+    }
+
+    function test_RejectedSpendsLeaveNoReceipt() public {
+        uint256 id = _grantDefault();
+        vm.prank(agent);
+        vm.expectRevert();
+        permits.spend(id, shop, 150e6, "demasiado");
+
+        assertEq(permits.receiptCountOf(owner), 0);
+    }
+
     // ---------------------------------------------------------------- utilidades
 
     function _terms() private view returns (AgentPermit.Terms memory) {

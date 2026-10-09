@@ -20,8 +20,8 @@ export const erc8004MonadTestnet = {
 export const monadTestnet: AvalAddresses = {
   chainId: 10143,
   passkeyRegistry: '0x0C46E673C0f852920e9F15902B0859358Eb53789',
-  agentPermit: '0x6d2A62614AF055921308c01745343413FCF8AA2C',
-  reputationReader: '0x52231e5FC27CBe9B0D466b9A4EecF19B9705A7d3',
+  agentPermit: '0x00F0C1b1FB751c380dF0132001eab6ca110Fc2DA',
+  reputationReader: '0x831EeA5808B40C2f1fE49d817B056D3d54E685D6',
   testUsd: '0xeD4Bb1e1926441461BcADA4BBF647Aba8574B3C5',
 };
 

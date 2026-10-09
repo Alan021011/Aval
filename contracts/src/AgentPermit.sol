@@ -9,6 +9,7 @@ import {WebAuthn} from "@openzeppelin/contracts/utils/cryptography/WebAuthn.sol"
 import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {PasskeyRegistry} from "./PasskeyRegistry.sol";
 
 /// @title AgentPermit
@@ -21,6 +22,7 @@ import {PasskeyRegistry} from "./PasskeyRegistry.sol";
 contract AgentPermit is EIP712, Nonces, ReentrancyGuard {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
+    using SafeCast for uint256;
 
     /// Límites que el usuario fija al crear un permiso.
     struct Terms {
@@ -55,6 +57,17 @@ contract AgentPermit is EIP712, Nonces, ReentrancyGuard {
         bytes32 ref;
     }
 
+    /// Recibo de un pago hecho con un permiso. Se guarda onchain para poder reconstruir el historial de un usuario sin
+    /// depender de un indexador (los RPC públicos limitan `eth_getLogs` a rangos muy cortos).
+    struct Receipt {
+        address to;
+        uint64 permitId;
+        uint128 amount;
+        uint64 requestId; // 0 si el gasto no necesitó aprobación
+        uint64 timestamp;
+        bytes32 ref;
+    }
+
     bytes32 private constant GRANT_TYPEHASH = keccak256(
         "Grant(address owner,address agent,uint256 agentId,address token,uint128 maxPerSpend,uint128 maxTotal,uint128 approvalThreshold,uint64 expiresAt,bytes32 recipientsHash,uint256 nonce,uint256 deadline)"
     );
@@ -73,6 +86,12 @@ contract AgentPermit is EIP712, Nonces, ReentrancyGuard {
     mapping(address payee => mapping(address client => uint256)) private _paid;
     mapping(address payee => EnumerableSet.AddressSet) private _payers;
     mapping(address payee => mapping(address payer => address owner)) private _payerOwner;
+
+    // Índices por usuario y por agente, para consultar desde un cliente sin leer eventos.
+    mapping(address owner => uint256[]) private _ownerPermits;
+    mapping(address agent => uint256[]) private _agentPermits;
+    mapping(address owner => uint256[]) private _ownerRequests;
+    mapping(address owner => Receipt[]) private _ownerReceipts;
 
     event PermitGranted(
         uint256 indexed permitId, address indexed owner, address indexed agent, uint256 agentId, Terms terms
@@ -178,6 +197,7 @@ contract AgentPermit is EIP712, Nonces, ReentrancyGuard {
 
         requestId = nextRequestId++;
         _requests[requestId] = SpendRequest(permitId, to, amount, RequestStatus.Pending, ref);
+        _ownerRequests[permit.owner].push(requestId);
         emit SpendRequested(requestId, permitId, permit.owner, to, amount, ref, approvalChallenge(requestId));
     }
 
@@ -248,6 +268,51 @@ contract AgentPermit is EIP712, Nonces, ReentrancyGuard {
         return _payerOwner[payee][payer];
     }
 
+    // ---------------------------------------------------------------- listados (paginados)
+
+    /// @notice IDs de los permisos de un usuario, del más antiguo al más nuevo.
+    function permitIdsOf(address owner, uint256 offset, uint256 limit) external view returns (uint256[] memory) {
+        return _page(_ownerPermits[owner], offset, limit);
+    }
+
+    function permitCountOf(address owner) external view returns (uint256) {
+        return _ownerPermits[owner].length;
+    }
+
+    /// @notice IDs de los permisos que un usuario le dio a un agente.
+    function agentPermitIds(address agent, uint256 offset, uint256 limit) external view returns (uint256[] memory) {
+        return _page(_agentPermits[agent], offset, limit);
+    }
+
+    function agentPermitCount(address agent) external view returns (uint256) {
+        return _agentPermits[agent].length;
+    }
+
+    /// @notice IDs de los pedidos de gasto sobre permisos de un usuario (pendientes, ejecutados o vencidos).
+    function requestIdsOf(address owner, uint256 offset, uint256 limit) external view returns (uint256[] memory) {
+        return _page(_ownerRequests[owner], offset, limit);
+    }
+
+    function requestCountOf(address owner) external view returns (uint256) {
+        return _ownerRequests[owner].length;
+    }
+
+    /// @notice Recibos de los pagos de un usuario, del más antiguo al más nuevo.
+    function receiptsOf(address owner, uint256 offset, uint256 limit) external view returns (Receipt[] memory page) {
+        Receipt[] storage all = _ownerReceipts[owner];
+        if (offset >= all.length) return page;
+        // Igual que en _page: sin sumar offset + limit, que desbordaría con un límite enorme.
+        uint256 end = limit > all.length - offset ? all.length : offset + limit;
+        page = new Receipt[](end - offset);
+        for (uint256 i = offset; i < end; ++i) {
+            page[i - offset] = all[i];
+        }
+    }
+
+    function receiptCountOf(address owner) external view returns (uint256) {
+        return _ownerReceipts[owner].length;
+    }
+
     // solhint-disable-next-line func-name-mixedcase
     function DOMAIN_SEPARATOR() external view returns (bytes32) {
         return _domainSeparatorV4();
@@ -272,7 +337,19 @@ contract AgentPermit is EIP712, Nonces, ReentrancyGuard {
         for (uint256 i; i < recipients.length; ++i) {
             _allowedRecipient[permitId][recipients[i]] = true;
         }
+        _ownerPermits[owner].push(permitId);
+        _agentPermits[terms.agent].push(permitId);
         emit PermitGranted(permitId, owner, terms.agent, terms.agentId, terms);
+    }
+
+    function _page(uint256[] storage items, uint256 offset, uint256 limit) private view returns (uint256[] memory page) {
+        if (offset >= items.length) return page;
+        // Se compara contra lo que queda, no contra offset + limit, que desbordaría con un límite enorme.
+        uint256 end = limit > items.length - offset ? items.length : offset + limit;
+        page = new uint256[](end - offset);
+        for (uint256 i = offset; i < end; ++i) {
+            page[i - offset] = items[i];
+        }
     }
 
     function _revoke(uint256 permitId) private {
@@ -298,6 +375,9 @@ contract AgentPermit is EIP712, Nonces, ReentrancyGuard {
         _payers[to].add(permit.terms.agent);
         _payerOwner[to][permit.owner] = permit.owner;
         _payerOwner[to][permit.terms.agent] = permit.owner;
+        _ownerReceipts[permit.owner].push(
+            Receipt(to, permitId.toUint64(), amount, requestId.toUint64(), uint64(block.timestamp), ref)
+        );
         emit Spent(permitId, permit.terms.agent, to, permit.owner, permit.terms.token, amount, ref, requestId);
         IERC20(permit.terms.token).safeTransferFrom(permit.owner, to, amount);
     }

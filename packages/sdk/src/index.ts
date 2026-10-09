@@ -52,7 +52,7 @@ export type Aval = ReturnType<typeof createAval>;
 export { monadTestnet, erc8004MonadTestnet, P256_PRECOMPILE } from './addresses.js';
 export type { AvalAddresses } from './addresses.js';
 export { AvalError, explainError } from './errors.js';
-export type { GrantInput, Permit, SpendRequest, SignedGrant, SignedRevoke } from './permits.js';
+export type { GrantInput, Permit, Receipt, SpendRequest, SignedGrant, SignedRevoke } from './permits.js';
 export { recipientsHash, toRef } from './permits.js';
 export type { SignedRegister } from './passkeys.js';
 export type { SignedTokenPermit } from './tokens.js';
