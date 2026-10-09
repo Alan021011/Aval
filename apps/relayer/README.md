@@ -86,8 +86,41 @@ npm test
 
 14 pruebas contra los contratos desplegados, sobre una copia local de Monad testnet (`anvil`): el flujo completo sin MON del usuario, varias operaciones a la vez, firmas falsas o vencidas, tokens no permitidos, solicitudes mal formadas, límites, saldo bajo, CORS y que no se filtre la clave. Si `anvil` no está instalado, se saltan.
 
+## Despliegue en Vercel
+
+`api/index.ts` es la entrada para Vercel: una función Node que atiende `/health`, `/relay/*` y `/faucet`. `vercel.json` ya trae el comando de instalación, el de compilación del SDK y las reglas de reenvío.
+
+Ajustes del proyecto en Vercel:
+
+| Ajuste | Valor |
+|---|---|
+| Root Directory | `apps/relayer` |
+| Include source files outside of the Root Directory | Activado (el relayer usa el SDK del monorepo) |
+| Framework Preset | Other |
+
+Variables de entorno (márcalas como **Sensitive** las secretas):
+
+| Variable | Valor |
+|---|---|
+| `RELAYER_PRIVATE_KEY` | Clave de la cuenta de testnet del relayer (**secreta**) |
+| `TRUST_PROXY` | `true` (en Vercel la IP real llega en `x-forwarded-for`; Vercel la reescribe y el cliente no puede falsearla) |
+| `ALLOWED_ORIGINS` | La URL de la demo, por ejemplo `https://aval-demo.vercel.app` |
+
+Lo que cambia respecto a un servidor normal:
+
+- **Varias instancias a la vez.** Vercel puede correr copias de la función en paralelo, cada una con su propia cola. Dos copias pueden elegir el mismo nonce y una choca. Cuando eso pasa la transacción no llegó a enviarse, así que el relayer la **reintenta sola** (hasta `MAX_NONCE_RETRIES`, 4 por defecto). Está probado, también inyectando el error.
+- **Los límites no se comparten entre copias.** Cada instancia cuenta por su cuenta, así que el límite por IP es aproximado. Para algo más estricto hay que moverlo a un almacén compartido (por ejemplo, Upstash Redis).
+- **Tiempo máximo por función.** En el plan gratuito es corto (10 s según la documentación pública). Una operación en testnet tarda 1-3 s.
+- **Si falta una variable de entorno**, la función responde `ServerMisconfigured` (HTTP 500) y el motivo queda en los registros de Vercel, en vez de no arrancar.
+
+Para probar la función de Vercel en tu equipo, sin desplegar:
+
+```bash
+node --env-file=.env --import tsx scripts/local-vercel.mjs   # http://localhost:8790
+```
+
 ## Limitaciones conocidas
 
-- **Los límites viven en memoria.** Sirven para una sola instancia. Con varias instancias (por ejemplo, funciones serverless) hay que moverlos a un almacén compartido, como Redis.
+- **Los límites viven en memoria.** Sirven bien para una sola instancia; con varias son aproximados (ver arriba).
 - **Es un relayer de testnet.** No tiene autenticación de usuario: confía en las firmas y en los límites. Para producción haría falta además un pago por uso o una lista de usuarios admitidos.
 - **No envía avisos de aprobación pendiente.** Eso se hará con webhooks de Alchemy, y necesita una URL pública.

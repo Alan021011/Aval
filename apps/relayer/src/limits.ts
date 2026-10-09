@@ -18,6 +18,8 @@ export type Limits = {
   faucetAmount: bigint;
   /** Segundos que debe esperar una dirección (o IP) entre pedidos al faucet. */
   faucetCooldownSeconds: number;
+  /** Veces que se reintenta un envío que chocó con otra transacción de la misma cuenta (otra instancia del servicio). */
+  maxNonceRetries: number;
 };
 
 export class RelayerError extends Error {
@@ -88,4 +90,5 @@ export const defaultLimits = (allowedTokens: Address[]): Limits => ({
   maxBodyBytes: 16 * 1024,
   faucetAmount: 500_000_000n, // 500 tUSD
   faucetCooldownSeconds: 3600,
+  maxNonceRetries: 4,
 });

@@ -17,6 +17,7 @@ const env = z.object({
   MAX_TX_PER_DAY: z.coerce.number().int().min(1).optional(),
   FAUCET_AMOUNT_TUSD: z.coerce.number().min(0).max(1000).optional(),
   FAUCET_COOLDOWN_SECONDS: z.coerce.number().int().min(0).optional(),
+  MAX_NONCE_RETRIES: z.coerce.number().int().min(0).max(10).optional(),
 });
 
 export type ServerConfig = {
@@ -53,6 +54,7 @@ export function loadConfig(source: Record<string, string | undefined> = process.
       ...(e.MAX_TX_PER_DAY ? { maxTransactionsPerDay: e.MAX_TX_PER_DAY } : {}),
       ...(e.FAUCET_AMOUNT_TUSD !== undefined ? { faucetAmount: BigInt(Math.round(e.FAUCET_AMOUNT_TUSD * 1e6)) } : {}),
       ...(e.FAUCET_COOLDOWN_SECONDS !== undefined ? { faucetCooldownSeconds: e.FAUCET_COOLDOWN_SECONDS } : {}),
+      ...(e.MAX_NONCE_RETRIES !== undefined ? { maxNonceRetries: e.MAX_NONCE_RETRIES } : {}),
     },
   };
 }

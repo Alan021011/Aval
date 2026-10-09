@@ -8,6 +8,7 @@ import {
   createWalletClient,
   defineChain,
   http,
+  NonceTooLowError,
   parseEther,
 } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
@@ -307,5 +308,77 @@ describe('superficie del servicio', () => {
 
     expect(allowed.headers.get('access-control-allow-origin')).toBe('http://localhost:5173');
     expect(other.headers.get('access-control-allow-origin')).toBeNull();
+  });
+});
+
+describe('choques de nonce entre instancias (como en funciones serverless)', () => {
+  /** Un walletClient cuyos primeros `failures` envíos fallan con el error de nonce, como si otra instancia se hubiera adelantado. */
+  function collidingWallet(failures: number) {
+    const real = wallet(relayerKey);
+    let calls = 0;
+    const flaky = { ...real, writeContract: (...args: Parameters<typeof real.writeContract>) => {
+      calls++;
+      if (calls <= failures) throw new NonceTooLowError({ nonce: 1 });
+      return real.writeContract(...args);
+    } } as typeof real;
+    return { flaky, calls: () => calls };
+  }
+
+  function setupWith(walletClient: ReturnType<typeof wallet>, limits: Partial<Limits>) {
+    const full = { ...generous, ...limits };
+    const relayer = createRelayer({ publicClient, walletClient, addresses: monadTestnet, limits: full });
+    const app = createApp({ relayer, limits: full, allowedOrigins: [], trustProxy: true });
+    return createRelayerClient({
+      url: 'http://relayer.test',
+      fetch: ((url: string, init: RequestInit) =>
+        app.request(url, { ...init, headers: { ...(init.headers as Record<string, string>), 'x-forwarded-for': '10.7.0.1' } })) as never,
+    });
+  }
+
+  it('reintenta y termina enviando cuando el nonce chocó', async (ctx) => {
+    needAnvil(ctx);
+    const { flaky, calls } = collidingWallet(2);
+    const client = setupWith(flaky, { maxNonceRetries: 4 });
+    const target = newUser().account.address;
+
+    const result = await client.faucet(target);
+
+    expect(result.hash).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(calls()).toBe(3); // dos intentos chocaron y el tercero entró
+    expect(await createAval({ publicClient }).tokens.balanceOf(target)).toBe(500_000_000n);
+  });
+
+  it('no reintenta para siempre: tras el límite responde error', async (ctx) => {
+    needAnvil(ctx);
+    const { flaky, calls } = collidingWallet(10);
+    const client = setupWith(flaky, { maxNonceRetries: 1 });
+
+    const error = await errorOf(client.faucet(newUser().account.address));
+
+    expect(error?.code).toBe('Internal');
+    expect(calls()).toBe(2); // el intento original más un reintento
+  });
+
+  it('un error que no es de nonce no se reintenta', async (ctx) => {
+    needAnvil(ctx);
+    const { client } = setup({ maxNonceRetries: 4 });
+    const user = createAval({ publicClient, walletClient: newUser() });
+    const forged = { ...(await user.passkeys.signRegister(simulatedPasskey().key)), owner: newUser().account.address };
+
+    // Firma de otro: se rechaza con InvalidSignature sin repetir nada.
+    expect((await errorOf(client.register(forged)))?.code).toBe('InvalidSignature');
+  });
+
+  it('dos instancias con la misma cuenta enviando a la vez: todas las operaciones llegan', async (ctx) => {
+    needAnvil(ctx);
+    const a = setup({ maxNonceRetries: 6 });
+    const b = setup({ maxNonceRetries: 6 });
+    const results = await Promise.all(
+      Array.from({ length: 8 }, (_, i) =>
+        errorOf((i % 2 === 0 ? a : b).clientFrom(`10.6.0.${i}`).faucet(newUser().account.address)),
+      ),
+    );
+
+    expect(results.filter((r) => r !== null)).toHaveLength(0);
   });
 });

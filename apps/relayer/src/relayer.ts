@@ -8,7 +8,16 @@ import {
   type WebAuthnAuth,
   createAval,
 } from '@aval/sdk';
-import { type Address, type Hash, type PublicClient, type WalletClient, formatEther } from 'viem';
+import {
+  type Address,
+  BaseError,
+  type Hash,
+  NonceTooHighError,
+  NonceTooLowError,
+  type PublicClient,
+  type WalletClient,
+  formatEther,
+} from 'viem';
 import { DailyCounter, type Limits, RelayerError, SlidingWindow } from './limits.js';
 import type { RelayKind } from './schemas.js';
 
@@ -31,6 +40,22 @@ type Payloads = {
 };
 
 type Context = { ip: string };
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** ¿El envío falló porque otra transacción de la misma cuenta ya usó ese nonce? */
+function isNonceCollision(error: unknown): boolean {
+  if (!(error instanceof BaseError)) return false;
+  const found = error.walk(
+    (e) =>
+      e instanceof NonceTooLowError ||
+      e instanceof NonceTooHighError ||
+      /nonce too low|nonce too high|replacement transaction underpriced|already known/i.test(
+        e instanceof Error ? e.message : '',
+      ),
+  );
+  return found !== null;
+}
 
 /**
  * Relayer de Aval. Recibe lo que el usuario firmó y lo envía pagando el gas. Nunca recibe claves privadas, y solo
@@ -91,18 +116,30 @@ export function createRelayer(options: RelayerOptions) {
     }
   };
 
-  /** Ejecuta una operación en la cadena y traduce los errores a respuestas seguras. */
+  /**
+   * Ejecuta una operación en la cadena y traduce los errores a respuestas seguras.
+   *
+   * Si el servicio corre en varias instancias a la vez (funciones serverless), la cola de arriba solo ordena los envíos
+   * de una instancia: dos instancias pueden elegir el mismo nonce. Cuando eso pasa la transacción no llegó a enviarse,
+   * así que repetirla es seguro.
+   */
   async function execute<T>(task: () => Promise<T>): Promise<T> {
-    try {
-      const result = await serial(task);
-      daily.add(now());
-      return result;
-    } catch (error) {
-      if (error instanceof RelayerError) throw error;
-      // Un error de contrato (firma inválida, límite superado…) es culpa de la solicitud, no del servidor.
-      if (error instanceof AvalError) throw new RelayerError(422, error.code, error.message);
-      console.error('[relayer] error inesperado:', error instanceof Error ? error.message : error);
-      throw new RelayerError(500, 'Internal', 'Error interno del relayer.');
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const result = await serial(task);
+        daily.add(now());
+        return result;
+      } catch (error) {
+        if (attempt < limits.maxNonceRetries && isNonceCollision(error)) {
+          await sleep(100 * (attempt + 1) + Math.random() * 200);
+          continue;
+        }
+        if (error instanceof RelayerError) throw error;
+        // Un error de contrato (firma inválida, límite superado…) es culpa de la solicitud, no del servidor.
+        if (error instanceof AvalError) throw new RelayerError(422, error.code, error.message);
+        console.error('[relayer] error inesperado:', error instanceof Error ? error.message : error);
+        throw new RelayerError(500, 'Internal', 'Error interno del relayer.');
+      }
     }
   }
 
