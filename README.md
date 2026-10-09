@@ -14,7 +14,7 @@ Hoy, para que un agente de IA pague por ti, le das tu llave o tu tarjeta. Si se 
 
 ## Probarlo
 
-- **Demo:** `apps/demo`. Un botón crea una cuenta con una sola huella (sin frase secreta, sin extensión, sin necesitar MON) y se puede recorrer todo el flujo.
+- **Demo en vivo:** https://aval-demo-alpha.vercel.app (código en `apps/demo`). Un botón crea una cuenta con una sola huella (sin frase secreta, sin extensión, sin necesitar MON) y se puede recorrer todo el flujo.
 - **Relayer en vivo:** https://aval-relayer.vercel.app (`/health`, `/agent/info`).
 - **Contratos verificados** en Monad testnet: ver [`contracts/README.md`](contracts/README.md).
 

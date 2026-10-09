@@ -129,7 +129,7 @@ Variables de entorno (márcalas como **Sensitive** las secretas):
 |---|---|
 | `RELAYER_PRIVATE_KEY` | Clave de la cuenta de testnet del relayer (**secreta**) |
 | `TRUST_PROXY` | `true` (en Vercel la IP real llega en `x-forwarded-for`; Vercel la reescribe y el cliente no puede falsearla) |
-| `ALLOWED_ORIGINS` | La URL de la demo, por ejemplo `https://aval-demo.vercel.app` |
+| `ALLOWED_ORIGINS` | La URL de la demo, por ejemplo `https://aval-demo-alpha.vercel.app` |
 
 Dos cosas que solo se descubren en el entorno real (las pruebas en local no las detectaban):
 

@@ -2,6 +2,8 @@
 
 La demo de Aval: una app web donde un usuario le da a un agente de IA un **permiso con límites**, y lo grande lo aprueba con su **huella**. Está hecha con el SDK ([`@aval/sdk`](../../packages/sdk/README.md)) y el [relayer](../relayer/README.md), sobre los contratos de Monad testnet.
 
+**En vivo:** https://aval-demo-alpha.vercel.app (Monad testnet, dinero de prueba).
+
 No es el producto: es la prueba de que el protocolo funciona y de que otro desarrollador puede construir encima con pocas líneas.
 
 ## Qué muestra
@@ -50,4 +52,9 @@ npm test
 
 ## Despliegue
 
-`vercel.json` ya trae los comandos. En Vercel: carpeta raíz `apps/demo` e «incluir archivos fuera de la raíz» activado. Después hay que agregar la URL de la demo a `ALLOWED_ORIGINS` del relayer.
+`vercel.json` ya trae los comandos. En Vercel: proyecto `aval-demo`, carpeta raíz `apps/demo` e «incluir archivos fuera de la raíz» activado. La URL de la demo debe estar en `ALLOWED_ORIGINS` del relayer (ya lo está).
+
+Dos detalles de Vercel que conviene saber:
+
+- **El alias corto `aval-demo.vercel.app` pertenece a otro proyecto ajeno**: los nombres `*.vercel.app` son únicos en todo Vercel. El alias de este proyecto es **`aval-demo-alpha.vercel.app`**. Hay que usar siempre ese.
+- Este repositorio tiene **dos proyectos de Vercel** (`aval-relayer` y `aval-demo`). El enlace de `.vercel/` en la raíz apunta al relayer; para desplegar la demo se indican los dos identificadores a mano: `VERCEL_ORG_ID=… VERCEL_PROJECT_ID=… vercel deploy --prod`.
