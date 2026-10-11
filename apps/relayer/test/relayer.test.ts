@@ -491,10 +491,14 @@ describe('agente de demostración', () => {
     // 2. Pasarse del máximo por pago lo rechaza el contrato, con un mensaje claro y sin gastar.
     const tooMuch = await errorOf(client.agent.spend({ permitId, amount: 150_000_000n }));
     expect(tooMuch?.code).toBe('ExceedsPerSpendLimit');
+    // Los montos del contrato llegan al cliente (como bigint) para poder explicar el bloqueo en tUSD.
+    expect(tooMuch?.args[0]).toBe(150_000_000n);
+    expect(typeof tooMuch?.args[1]).toBe('bigint');
 
     // 3. Sobre el umbral de aprobación, el pago directo se rechaza y el agente debe pedir permiso.
     const direct = await errorOf(client.agent.spend({ permitId, amount: 80_000_000n }));
     expect(direct?.code).toBe('NeedsApproval');
+    expect(direct?.args[0]).toBe(80_000_000n);
     const { requestId } = await client.agent.request({ permitId, amount: 80_000_000n, ref: 'traduccion-grande' });
     expect((await aval.permits.getRequest(requestId)).status).toBe(1);
     expect((await balanceOfService()) - before).toBe(20_000_000n);

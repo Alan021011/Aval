@@ -53,12 +53,13 @@ export function createRelayerClient(options: { url: string; fetch?: RelayerFetch
     }
     if (response.status >= 200 && response.status < 300) return data as T;
 
-    const error = (data as { error?: { code?: string; message?: string } }).error;
+    const error = (data as { error?: { code?: string; message?: string; args?: unknown } }).error;
     const retry = response.headers.get('retry-after');
     const extra = retry ? ` Reintenta en ${retry} s.` : '';
     throw new AvalError(
       error?.code ?? `Http${response.status}`,
       `${error?.message ?? 'El relayer rechazó la solicitud.'}${extra}`,
+      Array.isArray(error?.args) ? error.args : [],
     );
   }
 

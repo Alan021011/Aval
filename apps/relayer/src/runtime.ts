@@ -104,7 +104,7 @@ export function createRuntime(options: RuntimeOptions) {
           }
           if (error instanceof RelayerError) throw error;
           // Un error de contrato (firma inválida, límite superado…) es culpa de la solicitud, no del servidor.
-          if (error instanceof AvalError) throw new RelayerError(422, error.code, error.message);
+          if (error instanceof AvalError) throw new RelayerError(422, error.code, error.message, undefined, error.args);
           console.error(`[${label}] error inesperado:`, briefly(error));
           throw new RelayerError(500, 'Internal', 'Error interno del relayer.');
         }

@@ -26,7 +26,7 @@ const json = (c: Context, data: unknown, status: 200 | 400 | 404 | 413 | 422 | 4
 const fail = (c: Context, error: RelayerError) =>
   json(
     c,
-    { error: { code: error.code, message: error.message } },
+    { error: { code: error.code, message: error.message, ...(error.args.length > 0 ? { args: error.args } : {}) } },
     error.status as 400 | 404 | 422 | 429 | 500 | 503,
     error.retryAfterSeconds ? { 'retry-after': String(error.retryAfterSeconds) } : {},
   );

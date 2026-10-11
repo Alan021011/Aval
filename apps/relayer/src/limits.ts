@@ -30,6 +30,8 @@ export class RelayerError extends Error {
     readonly code: string,
     message: string,
     readonly retryAfterSeconds?: number,
+    /** Datos del error del contrato (por ejemplo, el monto y el límite superado), para que el cliente los explique. */
+    readonly args: readonly unknown[] = [],
   ) {
     super(message);
     this.name = 'RelayerError';
