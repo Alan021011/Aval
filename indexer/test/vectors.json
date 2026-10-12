@@ -1,0 +1,161 @@
+{
+  "_comment": "Casos del puntaje verificado. Los usa el indexador (indexer/test/score.test.ts) y el SDK (packages/sdk/test/score.test.ts): si las dos implementaciones dan lo mismo aquí, el SDK puede comprobar al indexador. Los montos y los índices son texto porque vienen de bigint.",
+  "params": { "minPaid": "1000000", "minHumans": 3 },
+  "cases": [
+    {
+      "name": "sin datos: provisional y vacío",
+      "feedbacks": [],
+      "relations": [],
+      "expected": {
+        "status": "Insufficient",
+        "verifiedAverage": null,
+        "verifiedHumans": 0,
+        "totalFeedbackCount": 0,
+        "rawAverage": null,
+        "excludedNotPaid": 0,
+        "excludedBelowMinPaid": 0,
+        "excludedRelated": 0,
+        "topClientShare": null,
+        "payingHumans": 0,
+        "totalPaid": "0"
+      }
+    },
+    {
+      "name": "cinco reseñas falsas de cuentas que no pagaron no cuentan",
+      "feedbacks": [
+        { "client": "0xh1", "feedbackIndex": "0", "value": "40", "decimals": 0, "createdAt": "10" },
+        { "client": "0xu1", "feedbackIndex": "0", "value": "100", "decimals": 0, "createdAt": "11" },
+        { "client": "0xu2", "feedbackIndex": "0", "value": "100", "decimals": 0, "createdAt": "12" },
+        { "client": "0xu3", "feedbackIndex": "0", "value": "100", "decimals": 0, "createdAt": "13" },
+        { "client": "0xu4", "feedbackIndex": "0", "value": "100", "decimals": 0, "createdAt": "14" },
+        { "client": "0xu5", "feedbackIndex": "0", "value": "100", "decimals": 0, "createdAt": "15" }
+      ],
+      "relations": [{ "client": "0xh1", "owner": "0xh1", "totalPaid": "5000000", "relatedToPayee": false }],
+      "expected": {
+        "status": "Insufficient",
+        "verifiedAverage": 40,
+        "verifiedHumans": 1,
+        "totalFeedbackCount": 6,
+        "rawAverage": 90,
+        "excludedNotPaid": 5,
+        "excludedBelowMinPaid": 0,
+        "excludedRelated": 0,
+        "topClientShare": 1,
+        "payingHumans": 1,
+        "totalPaid": "5000000"
+      }
+    },
+    {
+      "name": "tres personas: el dueño y su agente cuentan como una sola, con su reseña más reciente",
+      "feedbacks": [
+        { "client": "0xa1", "feedbackIndex": "0", "value": "80", "decimals": 0, "createdAt": "10" },
+        { "client": "0xa2", "feedbackIndex": "0", "value": "60", "decimals": 0, "createdAt": "20" },
+        { "client": "0xb1", "feedbackIndex": "0", "value": "90", "decimals": 0, "createdAt": "15" },
+        { "client": "0xc1", "feedbackIndex": "0", "value": "100", "decimals": 0, "createdAt": "12" }
+      ],
+      "relations": [
+        { "client": "0xa1", "owner": "0xa1", "totalPaid": "10000000", "relatedToPayee": false },
+        { "client": "0xa2", "owner": "0xa1", "totalPaid": "10000000", "relatedToPayee": false },
+        { "client": "0xb1", "owner": "0xb1", "totalPaid": "5000000", "relatedToPayee": false },
+        { "client": "0xc1", "owner": "0xc1", "totalPaid": "5000000", "relatedToPayee": false }
+      ],
+      "expected": {
+        "status": "Verified",
+        "verifiedAverage": 83.33333333333333,
+        "verifiedHumans": 3,
+        "totalFeedbackCount": 4,
+        "rawAverage": 82.5,
+        "excludedNotPaid": 0,
+        "excludedBelowMinPaid": 0,
+        "excludedRelated": 0,
+        "topClientShare": 0.5,
+        "payingHumans": 3,
+        "totalPaid": "20000000"
+      }
+    },
+    {
+      "name": "un cliente fondeado por el propio servicio no cuenta, ni su dinero en la concentración",
+      "feedbacks": [
+        { "client": "0xx1", "feedbackIndex": "0", "value": "70", "decimals": 0, "createdAt": "10" },
+        { "client": "0xr1", "feedbackIndex": "0", "value": "100", "decimals": 0, "createdAt": "11" }
+      ],
+      "relations": [
+        { "client": "0xx1", "owner": "0xx1", "totalPaid": "5000000", "relatedToPayee": false },
+        { "client": "0xr1", "owner": "0xr1", "totalPaid": "5000000", "relatedToPayee": true }
+      ],
+      "expected": {
+        "status": "Insufficient",
+        "verifiedAverage": 70,
+        "verifiedHumans": 1,
+        "totalFeedbackCount": 2,
+        "rawAverage": 85,
+        "excludedNotPaid": 0,
+        "excludedBelowMinPaid": 0,
+        "excludedRelated": 1,
+        "topClientShare": 1,
+        "payingHumans": 2,
+        "totalPaid": "10000000"
+      }
+    },
+    {
+      "name": "pago menor al mínimo no cuenta",
+      "feedbacks": [{ "client": "0xk1", "feedbackIndex": "0", "value": "80", "decimals": 0, "createdAt": "10" }],
+      "relations": [{ "client": "0xk1", "owner": "0xk1", "totalPaid": "500000", "relatedToPayee": false }],
+      "expected": {
+        "status": "Insufficient",
+        "verifiedAverage": null,
+        "verifiedHumans": 0,
+        "totalFeedbackCount": 1,
+        "rawAverage": 80,
+        "excludedNotPaid": 0,
+        "excludedBelowMinPaid": 1,
+        "excludedRelated": 0,
+        "topClientShare": 1,
+        "payingHumans": 1,
+        "totalPaid": "500000"
+      }
+    },
+    {
+      "name": "los decimales del valor se respetan",
+      "feedbacks": [{ "client": "0xm1", "feedbackIndex": "0", "value": "9000", "decimals": 2, "createdAt": "10" }],
+      "relations": [{ "client": "0xm1", "owner": "0xm1", "totalPaid": "2000000", "relatedToPayee": false }],
+      "expected": {
+        "status": "Insufficient",
+        "verifiedAverage": 90,
+        "verifiedHumans": 1,
+        "totalFeedbackCount": 1,
+        "rawAverage": 90,
+        "excludedNotPaid": 0,
+        "excludedBelowMinPaid": 0,
+        "excludedRelated": 0,
+        "topClientShare": 1,
+        "payingHumans": 1,
+        "totalPaid": "2000000"
+      }
+    },
+    {
+      "name": "empate de fecha entre dos direcciones de la misma persona: siempre gana la misma",
+      "feedbacks": [
+        { "client": "0xn1", "feedbackIndex": "0", "value": "10", "decimals": 0, "createdAt": "5" },
+        { "client": "0xn2", "feedbackIndex": "0", "value": "99", "decimals": 0, "createdAt": "5" }
+      ],
+      "relations": [
+        { "client": "0xn1", "owner": "0xn1", "totalPaid": "2000000", "relatedToPayee": false },
+        { "client": "0xn2", "owner": "0xn1", "totalPaid": "2000000", "relatedToPayee": false }
+      ],
+      "expected": {
+        "status": "Insufficient",
+        "verifiedAverage": 99,
+        "verifiedHumans": 1,
+        "totalFeedbackCount": 2,
+        "rawAverage": 54.5,
+        "excludedNotPaid": 0,
+        "excludedBelowMinPaid": 0,
+        "excludedRelated": 0,
+        "topClientShare": 1,
+        "payingHumans": 1,
+        "totalPaid": "2000000"
+      }
+    }
+  ]
+}

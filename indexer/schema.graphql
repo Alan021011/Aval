@@ -1,0 +1,144 @@
+# Esquema del indexador de Aval.
+# Los ids de cuentas y contratos son direcciones en minúsculas. Los montos de tUSD están en unidades (6 decimales).
+
+enum PermitStatus {
+  Active
+  Revoked
+}
+
+enum RequestStatus {
+  Pending
+  Executed
+}
+
+enum ScoreStatus {
+  """Hay al menos MIN_HUMANS personas verificadas distintas: el puntaje es confiable."""
+  Verified
+  """Aún no hay suficientes personas verificadas: el puntaje es provisional."""
+  Insufficient
+}
+
+"""Una cuenta (usuario, agente o servicio) y lo que se sabe de ella."""
+type Account {
+  id: ID!
+  hasPasskey: Boolean!
+  passkeyX: String
+  passkeyY: String
+  passkeyRegisteredAt: BigInt
+  """Quién le mandó tUSD por primera vez. La dirección cero significa que lo recibió del faucet (creado de la nada)."""
+  firstFundedBy: String
+  firstFundedAt: BigInt
+}
+
+type Permit {
+  id: ID!
+  owner: String! @index
+  agent: String! @index
+  agentId: BigInt!
+  token: String!
+  maxPerSpend: BigInt!
+  maxTotal: BigInt!
+  approvalThreshold: BigInt!
+  expiresAt: BigInt!
+  spent: BigInt!
+  status: PermitStatus!
+  createdAt: BigInt!
+  revokedAt: BigInt
+}
+
+"""Un pago grande que el agente pidió y espera (o ya recibió) la aprobación con huella del usuario."""
+type SpendRequest {
+  id: ID!
+  permit: Permit!
+  owner: String! @index
+  payee: String!
+  amount: BigInt!
+  ref: String!
+  status: RequestStatus!
+  createdAt: BigInt!
+  executedAt: BigInt
+}
+
+"""Un pago ejecutado (el recibo). `requestId` > 0 significa que el usuario lo aprobó con su huella."""
+type Payment {
+  id: ID!
+  permit: Permit!
+  owner: String! @index
+  agent: String! @index
+  payee: String! @index
+  token: String!
+  amount: BigInt!
+  ref: String!
+  requestId: BigInt!
+  approvedByUser: Boolean!
+  timestamp: BigInt! @index
+}
+
+"""
+Cuánto le pagó una cuenta a un servicio. Es la base del "cliente verificado": solo cuentan reseñas de quien pagó.
+Tanto el dueño del permiso como su agente quedan como pagadores (igual que en AgentPermit).
+"""
+type PaidRelation {
+  id: ID!
+  payee: String! @index
+  client: String! @index
+  """La persona detrás del pago: el dueño del permiso."""
+  owner: String!
+  totalPaid: BigInt!
+  paymentCount: Int!
+  firstPaidAt: BigInt!
+  lastPaidAt: BigInt!
+  """Verdadero si el servicio fondeó a este cliente (o a su persona) o si el cliente es el propio servicio: autopagos."""
+  relatedToPayee: Boolean!
+}
+
+"""Un agente registrado en ERC-8004 y la billetera que cobra por él."""
+type Agent {
+  id: ID!
+  agentId: BigInt!
+  wallet: String @index
+  walletCheckedAt: BigInt!
+}
+
+"""Una reseña del Reputation Registry de ERC-8004."""
+type Feedback {
+  id: ID!
+  agentId: BigInt! @index
+  client: String! @index
+  feedbackIndex: BigInt!
+  value: BigInt!
+  decimals: Int!
+  tag1: String!
+  tag2: String!
+  createdAt: BigInt!
+}
+
+"""
+Puntaje de un agente solo con reseñas de clientes que de verdad le pagaron.
+Se recalcula desde los eventos, así que otro puede verificarlo con la misma función (ver el SDK).
+"""
+type AgentScore {
+  id: ID!
+  agentId: BigInt!
+  wallet: String
+  status: ScoreStatus!
+  """Promedio de las reseñas que cuentan (una por persona, la última). Nulo si ninguna cuenta."""
+  verifiedAverage: Float
+  """Personas distintas cuyas reseñas cuentan."""
+  verifiedHumans: Int!
+  """Todas las reseñas recibidas, de cualquiera."""
+  totalFeedbackCount: Int!
+  """Promedio de todas las reseñas, sin ningún filtro: lo que muestra ERC-8004 a secas."""
+  rawAverage: Float
+  excludedNotPaid: Int!
+  excludedBelowMinPaid: Int!
+  excludedRelated: Int!
+  """Parte del volumen pagado que viene de la persona que más pagó (0 a 1). Alta significa concentración."""
+  topClientShare: Float
+  """Personas distintas que le han pagado al servicio."""
+  payingHumans: Int!
+  totalPaid: BigInt!
+  minPaid: BigInt!
+  minHumans: Int!
+  updatedAt: BigInt!
+}

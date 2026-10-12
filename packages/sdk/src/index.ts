@@ -75,3 +75,7 @@ export type { AgentCard } from './erc8004.js';
 export { createRelayerClient } from './relayer-client.js';
 export type { DemoAgentInfo, RelayerClient, RelayerFetch, RelayerHealth } from './relayer-client.js';
 export { deserialize, serialize } from './wire.js';
+export { createIndexerClient } from './indexer.js';
+export type { AgentScoreRecord, IndexerClient, IndexerFetch, PaymentRecord, ScoreCheck } from './indexer.js';
+export { computeVerifiedScore } from './score.js';
+export type { FeedbackInput as ScoreFeedback, RelationInput as ScoreRelation, ScoreParams, VerifiedScoreResult } from './score.js';

@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=./node_modules/envio/evm.schema.json
+name: aval-indexer
+description: Indexador de Aval. Permisos, pagos y reseñas de agentes, y el puntaje verificado de cada agente.
+
+# Direcciones en minúsculas: así se pueden comparar y usar como id sin pensar en mayúsculas.
+address_format: lowercase
+disable_default_cross_chain: true
+
+contracts:
+  # Permisos de Aval. Los pagos (Spent) son los "recibos" que deciden quién cuenta como cliente verificado.
+  - name: AgentPermit
+    events:
+      - event: PermitGranted(uint256 indexed permitId, address indexed owner, address indexed agent, uint256 agentId, (address,uint256,address,uint128,uint128,uint128,uint64) terms)
+      - event: PermitRevoked(uint256 indexed permitId)
+      - event: SpendRequested(uint256 indexed requestId, uint256 indexed permitId, address indexed owner, address to, uint256 amount, bytes32 ref, bytes32 challenge)
+      - event: Spent(uint256 indexed permitId, address indexed agent, address indexed to, address owner, address token, uint256 amount, bytes32 ref, uint256 requestId)
+
+  # Clave P256 de la huella de cada usuario.
+  - name: PasskeyRegistry
+    events:
+      - event: PasskeyRegistered(address indexed owner, bytes32 x, bytes32 y)
+
+  # Dólar de prueba. Solo se usa para saber quién fondeó primero a cada cuenta (origen de los fondos).
+  - name: TestUSD
+    events:
+      - event: Transfer(address indexed from, address indexed to, uint256 value)
+
+  # Reputation Registry oficial de ERC-8004 (el contrato no está verificado: la firma se comprobó contra un log real).
+  - name: ReputationRegistry
+    events:
+      - event: NewFeedback(uint256 indexed agentId, address indexed clientAddress, uint64 feedbackIndex, int128 value, uint8 valueDecimals, string indexed indexedTag1, string tag1, string tag2, string endpoint, string feedbackURI, bytes32 feedbackHash)
+
+chains:
+  - id: 10143 # Monad testnet
+    start_block: 0
+    contracts:
+      - name: AgentPermit
+        address: "0x00F0C1b1FB751c380dF0132001eab6ca110Fc2DA"
+        start_block: 69564026
+      - name: PasskeyRegistry
+        address: "0x0C46E673C0f852920e9F15902B0859358Eb53789"
+        start_block: 69345850
+      - name: TestUSD
+        address: "0xeD4Bb1e1926441461BcADA4BBF647Aba8574B3C5"
+        start_block: 69345861
+      - name: ReputationRegistry
+        address: "0x8004B663056A597Dffe9eCcC1965A193B7388713"
+        start_block: 69564026
