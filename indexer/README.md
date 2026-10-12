@@ -88,6 +88,16 @@ Además hay una prueba **con datos reales** (`test/live.test.ts`): procesa desde
 set -a && . ./.env && set +a && pnpm vitest run test/live.test.ts
 ```
 
+## Despliegue
+
+Se despliega en **Envio Cloud** (organización `alan021011`, indexador `aval-indexer`, plan de desarrollo, acceso público) con despliegue automático desde la rama `main`, carpeta `indexer`. Cada push que cambie algo ahí genera una versión nueva. Para ver el estado y los logs:
+
+```bash
+npx envio-cloud indexer get aval-indexer
+npx envio-cloud deployment status aval-indexer <commit>
+npx envio-cloud deployment logs aval-indexer <commit>
+```
+
 ## Contratos
 
 Las direcciones y los bloques de inicio están en [`config.yaml`](config.yaml) y salen de [`contracts/deployments/monad-testnet.json`](../contracts/deployments/monad-testnet.json). Si se redespliega `AgentPermit`, hay que actualizar la dirección y el bloque ahí.
