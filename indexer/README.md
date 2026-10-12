@@ -90,6 +90,8 @@ set -a && . ./.env && set +a && pnpm vitest run test/live.test.ts
 
 ## Despliegue
 
+**GraphQL público:** https://indexer.dev.hyperindex.xyz/78c4620/v1/graphql
+
 Se despliega en **Envio Cloud** (organización `alan021011`, indexador `aval-indexer`, plan de desarrollo, acceso público) con despliegue automático desde la rama `main`, carpeta `indexer`. Cada push que cambie algo ahí genera una versión nueva. El indexador necesita la variable `ENVIO_API_TOKEN` (con tu token de https://envio.dev/app/api-tokens): se carga con `npx envio-cloud indexer env set aval-indexer <org> ENVIO_API_TOKEN=...` y se aplica en el siguiente despliegue. Un token revocado devuelve HTTP 403 en HyperSync. Para ver el estado y los logs:
 
 ```bash
