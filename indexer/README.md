@@ -52,7 +52,7 @@ console.log(check?.matches, check?.differences);        // true, []
 
 - **Fondeo de varios saltos.** Detecta que el servicio fondeó *directamente* a un cliente. Si lo hace por una cadena de cuentas intermedias, no lo ve.
 - **Reseñas revocadas.** No procesa `FeedbackRevoked` (la firma de ese evento no se pudo verificar porque el contrato no está verificado en Sourcify).
-- **Billetera del agente.** Se lee del Identity Registry al llegar cada reseña. Si el agente la cambia después, se refleja en la siguiente reseña, no antes.
+- **Billetera del agente.** Se lee del Identity Registry una vez por agente (con caché y tres RPC de respaldo) y se guarda. Si el agente la cambia después, el indexador sigue usando la primera. La caché es necesaria: el registro tiene reseñas de cientos de agentes y, sin ella, el RPC público frenaba al indexador en la nube.
 - **Escala.** Recalcular el puntaje lee todas las reseñas del agente: está bien para miles, no para millones.
 
 ## Ejecutar

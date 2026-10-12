@@ -97,6 +97,18 @@ describe('createIndexerClient.verifyAgentScore', () => {
     await expect(createIndexerClient({ url: 'http://indexer.test', fetch: never }).payments('0x1" } ) { x')).rejects.toThrow('no es una dirección válida');
   });
 
+  it('filtra por red: el indexador identifica cada fila por (id, chainId)', async () => {
+    const seen: string[] = [];
+    const recording: IndexerFetch = async (_url, init) => {
+      seen.push((JSON.parse(init.body) as { query: string }).query);
+      return { ok: true, status: 200, json: async () => ({ data: { AgentScore_by_pk: null, Payment: [] } }) };
+    };
+    await createIndexerClient({ url: 'http://indexer.test', fetch: recording }).agentScore(2090n);
+    await createIndexerClient({ url: 'http://indexer.test', fetch: recording, chainId: 143 }).payments('0x' + 'a'.repeat(40));
+    expect(seen[0]).toContain('AgentScore_by_pk(id: "2090", chainId: 10143)');
+    expect(seen[1]).toContain('chainId: {_eq: 143}');
+  });
+
   it('explica los errores del indexador', async () => {
     const failing: IndexerFetch = async () => ({ ok: true, status: 200, json: async () => ({ errors: [{ message: 'field not found' }] }) });
     await expect(createIndexerClient({ url: 'http://indexer.test', fetch: failing }).agentScore(1n)).rejects.toThrow('field not found');

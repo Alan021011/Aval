@@ -88,8 +88,14 @@ const close = (a: number | null, b: number | null) => (a === null || b === null 
  * usuario y, sobre todo, puede **comprobar** el puntaje: lo recalcula con las reseñas y los pagos en bruto, así no
  * hay que creerle al indexador.
  */
-export function createIndexerClient(options: { url: string; fetch?: IndexerFetch }) {
+export function createIndexerClient(options: {
+  url: string;
+  /** Red de los datos. Cada fila del indexador se identifica por (id, chainId). Por defecto, Monad testnet. */
+  chainId?: number;
+  fetch?: IndexerFetch;
+}) {
   const doFetch: IndexerFetch = options.fetch ?? ((url, init) => globalThis.fetch(url, init));
+  const chainId = Math.floor(options.chainId ?? 10143);
 
   async function query<T = Row>(graphql: string): Promise<T> {
     const response = await doFetch(options.url, {
@@ -105,7 +111,7 @@ export function createIndexerClient(options: { url: string; fetch?: IndexerFetch
   }
 
   async function agentScore(agentId: bigint): Promise<AgentScoreRecord | null> {
-    const data = await query<{ AgentScore_by_pk: Row | null }>(`{ AgentScore_by_pk(id: "${agentId}") { ${SCORE_FIELDS} } }`);
+    const data = await query<{ AgentScore_by_pk: Row | null }>(`{ AgentScore_by_pk(id: "${agentId}", chainId: ${chainId}) { ${SCORE_FIELDS} } }`);
     return data.AgentScore_by_pk ? toScoreRecord(data.AgentScore_by_pk) : null;
   }
 
@@ -119,7 +125,7 @@ export function createIndexerClient(options: { url: string; fetch?: IndexerFetch
     /** Pagos hechos por (o a través de los permisos de) un usuario, del más reciente al más antiguo. */
     async payments(owner: string, limit = 50): Promise<PaymentRecord[]> {
       const data = await query<{ Payment: Row[] }>(
-        `{ Payment(where: {owner: {_eq: "${assertAddress(owner)}"}}, order_by: {timestamp: desc}, limit: ${Math.max(1, Math.floor(limit))}) { id permit_id payee amount approvedByUser timestamp } }`,
+        `{ Payment(where: {owner: {_eq: "${assertAddress(owner)}"}, chainId: {_eq: ${chainId}}}, order_by: {timestamp: desc}, limit: ${Math.max(1, Math.floor(limit))}) { id permit_id payee amount approvedByUser timestamp } }`,
       );
       return data.Payment.map((p) => ({
         id: String(p.id),
@@ -141,10 +147,10 @@ export function createIndexerClient(options: { url: string; fetch?: IndexerFetch
       if (!stored) return null;
 
       const [feedbackData, relationData] = await Promise.all([
-        query<{ Feedback: Row[] }>(`{ Feedback(where: {agentId: {_eq: "${agentId}"}}) { client feedbackIndex value decimals createdAt } }`),
+        query<{ Feedback: Row[] }>(`{ Feedback(where: {agentId: {_eq: "${agentId}"}, chainId: {_eq: ${chainId}}}) { client feedbackIndex value decimals createdAt } }`),
         stored.wallet
           ? query<{ PaidRelation: Row[] }>(
-              `{ PaidRelation(where: {payee: {_eq: "${assertAddress(stored.wallet)}"}}) { client owner totalPaid relatedToPayee } }`,
+              `{ PaidRelation(where: {payee: {_eq: "${assertAddress(stored.wallet)}"}, chainId: {_eq: ${chainId}}}) { client owner totalPaid relatedToPayee } }`,
             )
           : Promise.resolve({ PaidRelation: [] as Row[] }),
       ]);
