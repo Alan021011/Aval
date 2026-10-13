@@ -186,7 +186,10 @@ export function useMemory(app: App) {
     [app.address, bridge],
   );
 
-  return { ...state, agentAddress, unlock, savePrivate, share, revoke, agentRecall };
+  /** La clave que el usuario le dio al agente (para pasársela en una tarea), o null. */
+  const agentKey = useCallback(() => givenKey.current, []);
+
+  return { ...state, agentAddress, agentKey, unlock, savePrivate, share, revoke, agentRecall };
 }
 
 export type Memory = ReturnType<typeof useMemory>;

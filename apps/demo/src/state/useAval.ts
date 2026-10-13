@@ -598,6 +598,8 @@ export function useAval() {
       timed,
       notify,
       addLog,
+      /** Recarga el estado desde la cadena (sin pasar por 'act', para usarlo dentro de otra acción). */
+      refresh,
     },
   };
 }

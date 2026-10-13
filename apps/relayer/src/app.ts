@@ -7,12 +7,15 @@ import { ZodError } from 'zod';
 import { type Limits, RelayerError } from './limits.js';
 import type { DemoAgent } from './agent.js';
 import { type Relayer, briefly } from './relayer.js';
-import { agentRecallSchema, agentReviewSchema, agentSpendSchema, faucetSchema, isRelayKind, schemas } from './schemas.js';
+import { agentRecallSchema, agentReviewSchema, agentSpendSchema, agentTaskSchema, faucetSchema, isRelayKind, schemas } from './schemas.js';
+import type { AgentBrain } from './brain.js';
 
 export type AppOptions = {
   relayer: Relayer;
   /** Agente de demostración. Si no se configura, sus rutas responden 404. */
   agent?: DemoAgent;
+  /** Cerebro del agente (Qwen). Opcional: sin él, /agent/task responde que no está disponible. */
+  brain?: AgentBrain;
   limits: Limits;
   /** Orígenes del navegador que pueden llamar al relayer. */
   allowedOrigins: string[];
@@ -41,7 +44,7 @@ function clientIp(c: Context, trustProxy: boolean): string {
   return incoming?.socket?.remoteAddress ?? 'unknown';
 }
 
-export function createApp({ relayer, agent, limits, allowedOrigins, trustProxy = false }: AppOptions) {
+export function createApp({ relayer, agent, brain, limits, allowedOrigins, trustProxy = false }: AppOptions) {
   const app = new Hono();
 
   app.use(
@@ -141,6 +144,11 @@ export function createApp({ relayer, agent, limits, allowedOrigins, trustProxy =
   );
   app.post('/agent/review', tooLarge, (c) =>
     agent ? agentAction(c, agentReviewSchema, (input, ip) => agent.review(input, { ip })) : disabled(c),
+  );
+  app.post('/agent/task', tooLarge, (c) =>
+    brain
+      ? agentAction(c, agentTaskSchema, (input, ip) => brain.runTask(input, { ip }))
+      : fail(c, new RelayerError(503, 'AgentBrainDisabled', 'El agente con Qwen no está configurado en este relayer.')),
   );
   app.post('/agent/recall', tooLarge, (c) =>
     agent ? agentAction(c, agentRecallSchema, (input, ip) => agent.recall(input, { ip })) : disabled(c),

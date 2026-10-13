@@ -4,9 +4,26 @@
   "buildCommand": "cd ../.. && npm run build:sdk",
   "outputDirectory": "public",
   "rewrites": [
-    { "source": "/health", "destination": "/api" },
-    { "source": "/relay/:kind", "destination": "/api" },
-    { "source": "/faucet", "destination": "/api" },
-    { "source": "/agent/:action", "destination": "/api" }
-  ]
+    {
+      "source": "/health",
+      "destination": "/api"
+    },
+    {
+      "source": "/relay/:kind",
+      "destination": "/api"
+    },
+    {
+      "source": "/faucet",
+      "destination": "/api"
+    },
+    {
+      "source": "/agent/:action",
+      "destination": "/api"
+    }
+  ],
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 60
+    }
+  }
 }

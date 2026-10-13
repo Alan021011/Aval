@@ -22,6 +22,11 @@ export type RelayerHealth = {
 };
 
 /** Datos del agente de demostración de un relayer. `ready` es falso si se quedó sin gas. */
+/** Un paso del agente con Qwen: una herramienta que usó (con su resultado) o su respuesta final. */
+export type AgentTaskStep =
+  | { kind: 'tool'; name: string; args: Record<string, unknown>; result: unknown }
+  | { kind: 'answer'; text: string };
+
 export type DemoAgentInfo = {
   address: Address;
   /** Servicio al que el agente le paga: un agente de ERC-8004 cuya billetera recibe los pagos. */
@@ -96,6 +101,12 @@ export function createRelayerClient(options: { url: string; fetch?: RelayerFetch
        * El agente lee la parte de la memoria que `owner` compartió con él, con la clave que el usuario le dio. Si el
        * usuario revocó el acceso (subió la versión), esa clave ya no abre la memoria y el error lo dice.
        */
+      /**
+       * Le da una tarea en lenguaje natural al agente con Qwen. Qwen planifica y usa herramientas reales (permiso,
+       * reputación, memoria compartida, pagar, pedir aprobación, reseñar); devuelve cada paso y su respuesta.
+       */
+      task: (input: { owner: Address; permitId: bigint; task: string; memoryKey?: Hex }) =>
+        call<{ steps: AgentTaskStep[]; answer: string }>('POST', '/agent/task', input),
       recall: (input: { owner: Address; key: Hex }) =>
         call<{ text: string; version: number }>('POST', '/agent/recall', input),
     },

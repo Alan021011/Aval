@@ -25,6 +25,8 @@ import {
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { simulatedPasskey, startAnvil } from '../../../packages/sdk/test/helpers.js';
 import { createDemoAgent } from '../src/agent.js';
+import { createAgentBrain } from '../src/brain.js';
+import type { ChatFn } from '../src/qwen.js';
 import { createApp } from '../src/app.js';
 import { type Limits, defaultLimits } from '../src/limits.js';
 import { createRelayer } from '../src/relayer.js';
@@ -428,7 +430,7 @@ describe('agente de demostración', () => {
   let serviceAgentId = 0n;
 
   /** Un relayer con agente de demostración. El servicio se registra una sola vez en ERC-8004. */
-  async function setupAgent(overrides: Partial<Limits> = {}) {
+  async function setupAgent(overrides: Partial<Limits> = {}, chat?: ChatFn) {
     if (serviceAgentId === 0n) {
       const registered = await createAval({ publicClient, walletClient: wallet(serviceKey) }).agents.register();
       serviceAgentId = registered.agentId;
@@ -442,7 +444,8 @@ describe('agente de demostración', () => {
       limits,
       service: { address: serviceAddress, agentId: serviceAgentId },
     });
-    const app = createApp({ relayer, agent, limits, allowedOrigins: [], trustProxy: true });
+    const brain = chat ? createAgentBrain({ agent, reader: createAval({ publicClient, addresses: monadTestnet }), chat }) : undefined;
+    const app = createApp({ relayer, agent, brain, limits, allowedOrigins: [], trustProxy: true });
     const client = createRelayerClient({
       url: 'http://relayer.test',
       fetch: ((url: string, init: RequestInit) =>
@@ -478,6 +481,49 @@ describe('agente de demostración', () => {
     );
     return { user, aval, permitId };
   }
+
+  it('agente con Qwen (modelo simulado): ante el rechazo del contrato cambia de plan y pide la aprobación del usuario', async (ctx) => {
+    needAnvil(ctx);
+    // Guion del "modelo": consulta el permiso y la reputación, intenta pagar 80, lee el rechazo y pide aprobación.
+    const call = (id: string, name: string, args: unknown = {}) => ({ id, type: 'function' as const, function: { name, arguments: JSON.stringify(args) } });
+    const replies = [
+      { content: null, tool_calls: [call('1', 'consultar_permiso'), call('2', 'consultar_reputacion')] },
+      { content: null, tool_calls: [call('3', 'pagar_servicio', { monto_tusd: 80, motivo: 'traducción' })] },
+      { content: null, tool_calls: [call('4', 'pedir_aprobacion', { monto_tusd: 80, motivo: 'traducción' })] },
+      { content: 'Intenté pagar 80 tUSD pero supera tu umbral; te pedí la aprobación con tu huella.' },
+    ];
+    const seenTools: string[] = [];
+    const chat: ChatFn = async (messages) => {
+      const last = messages.at(-1);
+      if (last?.role === 'tool') seenTools.push(last.content);
+      return replies.shift()!;
+    };
+    const { client } = await setupAgent({}, chat);
+    const { user, aval, permitId } = await userWithPermit(client);
+
+    const result = await client.agent.task({ owner: user.account.address, permitId, task: 'Contrata una traducción de 80 tUSD' });
+
+    const tool = (name: string) => result.steps.find((s) => s.kind === 'tool' && s.name === name) as { result: Record<string, unknown> };
+    expect(tool('consultar_permiso').result).toMatchObject({ activo: true, maximoPorPago: 100, aprobacionDelUsuarioSobre: 50 });
+    // El contrato real rechazó el pago y el rechazo volvió al modelo con los montos en tUSD.
+    expect(tool('pagar_servicio').result).toMatchObject({ ok: false, rechazoDelContrato: 'NeedsApproval', monto: 80, limite: 50 });
+    expect(seenTools.some((c) => c.includes('NeedsApproval'))).toBe(true);
+    // El modelo cambió de plan: el pedido quedó pendiente en la cadena, esperando la huella del usuario.
+    const requestId = BigInt(tool('pedir_aprobacion').result.pedido as string);
+    expect((await aval.permits.getRequest(requestId)).status).toBe(1);
+    expect(result.answer).toContain('aprobación');
+
+    // Un permiso que no es de esa cuenta no se puede usar.
+    const error = await errorOf(client.agent.task({ owner: newUser().account.address, permitId, task: 'paga algo' }));
+    expect(error?.code).toBe('PermitNotYours');
+  });
+
+  it('sin Qwen configurado, /agent/task responde que no está disponible', async (ctx) => {
+    needAnvil(ctx);
+    const { client } = await setupAgent();
+    const error = await errorOf(client.agent.task({ owner: newUser().account.address, permitId: 1n, task: 'hola agente' }));
+    expect(error?.code).toBe('AgentBrainDisabled');
+  });
 
   it('memoria cifrada: el agente lee solo lo que el usuario compartió y deja de poder hacerlo al revocar', async (ctx) => {
     needAnvil(ctx);

@@ -75,7 +75,7 @@ export type { AssertionProvider, PasskeyPublicKey, RawAssertion, WebAuthnAuth } 
 export { agentCardUri } from './erc8004.js';
 export type { AgentCard } from './erc8004.js';
 export { createRelayerClient } from './relayer-client.js';
-export type { DemoAgentInfo, RelayerClient, RelayerFetch, RelayerHealth } from './relayer-client.js';
+export type { AgentTaskStep, DemoAgentInfo, RelayerClient, RelayerFetch, RelayerHealth } from './relayer-client.js';
 export { deserialize, serialize } from './wire.js';
 export {
   MEMORY_PRF_SALT,

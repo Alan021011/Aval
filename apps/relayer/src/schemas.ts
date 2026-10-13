@@ -98,6 +98,14 @@ export const agentSpendSchema = z.strictObject({
 /** El usuario le da al agente la clave de su parte de la memoria (32 bytes) para que la lea. */
 export const agentRecallSchema = z.strictObject({ owner: address, key: hex32 });
 
+/** Una tarea en lenguaje natural para el agente con Qwen. La clave de memoria es opcional (el usuario decide). */
+export const agentTaskSchema = z.strictObject({
+  owner: address,
+  permitId: uint(64),
+  task: z.string().trim().min(3).max(500),
+  memoryKey: hex32.optional(),
+});
+
 export const agentReviewSchema = z.strictObject({
   /** Escala de 0 a 100: el promedio de ERC-8004 se trunca a enteros. */
   value: z.number().int().min(0).max(100),

@@ -1134,3 +1134,49 @@ a {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* agente con Qwen */
+
+.check {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.check input {
+  margin-top: 3px;
+}
+
+.steps-agent {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.step-agent {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+.step-agent p {
+  color: var(--muted);
+  font-size: 0.875rem;
+  margin-top: 2px;
+}
+
+.step-ok svg {
+  color: var(--ok);
+}
+
+.step-bad svg {
+  color: var(--bad);
+}

@@ -2,6 +2,9 @@ import { monadTestnet } from '@aval/sdk';
 import { createPublicClient, createWalletClient, defineChain, fallback, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { createDemoAgent } from './agent.js';
+import { createAgentBrain } from './brain.js';
+import { qwenChat } from './qwen.js';
+import { createAval } from '@aval/sdk';
 import { createApp } from './app.js';
 import { type ServerConfig, loadConfig } from './config.js';
 import { createRelayer } from './relayer.js';
@@ -39,9 +42,15 @@ export function createFromEnv(source: Record<string, string | undefined> = proce
       })
     : undefined;
 
+  const brain =
+    demoAgent && config.qwen
+      ? createAgentBrain({ agent: demoAgent, reader: createAval({ publicClient, addresses: monadTestnet }), chat: qwenChat(config.qwen) })
+      : undefined;
+
   const app = createApp({
     relayer,
     agent: demoAgent,
+    brain,
     limits: config.limits,
     allowedOrigins: config.allowedOrigins,
     trustProxy: config.trustProxy,

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Activity, AgentPanel, Approvals, PermitCard, Reputation, Summary } from './components/Dashboard';
 import { MemoryCard } from './components/Memory';
+import { AgentTaskCard } from './components/AgentTask';
 import { type Memory, useMemory } from './state/useMemory';
 import { Inspector } from './components/Inspector';
 import { Landing, Preparing } from './components/Onboarding';
@@ -90,6 +91,7 @@ function Dashboard({ app, memory, inspector }: { app: AppState; memory: Memory; 
         <div className="col">
           <PermitCard app={app} />
           <AgentPanel app={app} />
+          <AgentTaskCard app={app} memory={memory} />
         </div>
         <div className="col">
           <Approvals app={app} />
