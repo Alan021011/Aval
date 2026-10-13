@@ -1,146 +1,77 @@
-import { useEffect, useState } from 'react';
-import { Activity, AgentPanel, Approvals, PermitCard, Reputation, Summary } from './components/Dashboard';
-import { MemoryCard } from './components/Memory';
-import { AgentTaskCard } from './components/AgentTask';
-import { type Memory, useMemory } from './state/useMemory';
-import { Inspector } from './components/Inspector';
+import { useState } from 'react';
+import { AgentTaskView, type TaskResult } from './components/AgentTask';
+import { ApprovalsView } from './components/Approvals';
+import { InspectorView } from './components/Inspector';
+import { MemoryView } from './components/Memory';
 import { Landing, Preparing } from './components/Onboarding';
-import { Button, Icon } from './components/ui';
+import { PanelView } from './components/Panel';
+import { PermitView } from './components/Permit';
+import { ReceiptsView } from './components/Receipts';
+import { BottomNav, Footer, Header, Locked, Sidebar, TestnetNote, Toast } from './components/Shell';
+import { type Route, useRoute } from './lib/router';
 import { type App as AppState, useAval } from './state/useAval';
+import { type Memory, useMemory } from './state/useMemory';
 
-/** Cuenta atrás de la sesión. Tiene su propio reloj para que no se redibuje toda la app cada segundo. */
-function SessionChip({ app }: { app: AppState }) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  // Al llegar a cero, se bloquea sola. La clave sale de la memoria.
-  useEffect(() => {
-    if (app.phase === 'in' && app.lockAt !== null && now >= app.lockAt) app.lock('Sesión bloqueada por inactividad.');
-  }, [now, app]);
-
-  if (app.phase !== 'in' || app.lockAt === null) return null;
-  const left = Math.max(0, Math.ceil((app.lockAt - now) / 1000));
-  const text = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
-  return (
-    <button type="button" className={`chip${left <= 60 ? ' chip-warn' : ''}`} onClick={() => app.lock('Sesión bloqueada.')} title="Bloquear la sesión ahora">
-      <span className="dot" aria-hidden="true" />
-      <span className="chip-long">Sesión abierta · se bloquea en {text}</span>
-      <span className="chip-short">Sesión · {text}</span>
-      <Icon name="lock" size={14} />
-    </button>
-  );
-}
-
-function Header({ app, inspector, onInspector }: { app: AppState; inspector: boolean; onInspector: () => void }) {
-  return (
-    <header className="topbar">
-      <div className="topbar-inner">
-        <a className="brand" href="/" aria-label="Aval, inicio">
-          <Icon name="shield" size={22} />
-          <span>Aval</span>
-        </a>
-        <div className="topbar-actions">
-          <SessionChip app={app} />
-          <Button variant={inspector ? 'primary' : 'ghost'} icon="eye" aria-pressed={inspector} onClick={onInspector}>
-            Inspector
-          </Button>
-        </div>
-      </div>
-    </header>
-  );
-}
-
-function Locked({ app }: { app: AppState }) {
-  return (
-    <div className="callout callout-warn locked" role="alert">
-      <Icon name="lock" />
-      <div>
-        <strong>Sesión bloqueada</strong>
-        <p>Por seguridad, la clave salió de la memoria. Usa tu huella para continuar; tus datos siguen ahí.</p>
-      </div>
-      <Button variant="primary" icon="unlock" loading={app.busy === 'enter'} disabled={!!app.busy} onClick={() => app.enter(app.mode)}>
-        Desbloquear
-      </Button>
-    </div>
-  );
-}
-
-function Dashboard({ app, memory, inspector }: { app: AppState; memory: Memory; inspector: boolean }) {
-  return (
-    <div className="dashboard">
-      {app.phase === 'locked' ? <Locked app={app} /> : null}
-
-      {app.pending.length > 0 && app.phase === 'in' ? (
-        <a className="callout callout-accent attention" href="#approvals">
-          <Icon name="fingerprint" />
-          <div>
-            <strong>Tu agente espera tu aprobación</strong>
-            <p>
-              {app.pending.length === 1 ? 'Hay un pago grande' : `Hay ${app.pending.length} pagos grandes`} que solo se hará con tu huella.
-            </p>
-          </div>
-        </a>
-      ) : null}
-
-      <Summary app={app} />
-
-      <div className="columns">
-        <div className="col">
-          <PermitCard app={app} />
-          <AgentPanel app={app} />
-          <AgentTaskCard app={app} memory={memory} />
-        </div>
-        <div className="col">
-          <Approvals app={app} />
-          <Activity app={app} />
-          <Reputation app={app} />
-          <MemoryCard app={app} memory={memory} />
-        </div>
-      </div>
-
-      {inspector ? <Inspector app={app} memory={memory} /> : null}
-    </div>
-  );
+function View({ route, app, memory, task, setTask }: { route: Route; app: AppState; memory: Memory; task: TaskResult | null; setTask: (r: TaskResult | null) => void }) {
+  switch (route) {
+    case 'permiso':
+      return <PermitView app={app} />;
+    case 'agente':
+      return <AgentTaskView app={app} memory={memory} result={task} setResult={setTask} />;
+    case 'aprobaciones':
+      return <ApprovalsView app={app} />;
+    case 'recibos':
+      return <ReceiptsView app={app} />;
+    case 'memoria':
+      return <MemoryView app={app} memory={memory} />;
+    case 'inspector':
+      return <InspectorView app={app} memory={memory} />;
+    default:
+      return <PanelView app={app} memory={memory} />;
+  }
 }
 
 export default function App() {
   const app = useAval();
   const memory = useMemory(app);
-  const [inspector, setInspector] = useState(false);
+  const route = useRoute();
+  // La última tarea de Qwen vive aquí para que no se pierda al cambiar de vista.
+  const [task, setTask] = useState<TaskResult | null>(null);
 
-  const showDashboard = (app.phase === 'in' || app.phase === 'locked') && app.snapshot;
+  const signedIn = (app.phase === 'in' || app.phase === 'locked') && !!app.snapshot;
 
   return (
-    <>
-      <Header app={app} inspector={inspector} onInspector={() => setInspector((v) => !v)} />
-      <main id="contenido">
-        {showDashboard ? <Dashboard app={app} memory={memory} inspector={inspector} /> : app.phase === 'working' ? <Preparing app={app} /> : <Landing app={app} />}
-        {!showDashboard && inspector ? <Inspector app={app} /> : null}
-      </main>
+    <div className="flex min-h-dvh flex-col">
+      <Header app={app} route={route} signedIn={signedIn} />
 
-      <div className="toast-zone" aria-live="polite">
-        {app.notice ? (
-          <div className={`toast toast-${app.notice.kind}`} role={app.notice.kind === 'error' ? 'alert' : 'status'} key={app.notice.id}>
-            <Icon name={app.notice.kind === 'ok' ? 'check' : app.notice.kind === 'error' ? 'alert' : 'info'} />
-            <span>{app.notice.text}</span>
-            <button type="button" className="toast-close" aria-label="Cerrar aviso" onClick={app.dismissNotice}>
-              <Icon name="x" size={16} />
-            </button>
-          </div>
-        ) : null}
+      {signedIn ? (
+        <div className="mx-auto flex w-full max-w-[1280px] flex-1">
+          <Sidebar route={route} pending={app.pending.length} />
+          <main id="contenido" className="min-w-0 flex-1 px-4 pt-5 pb-8 md:px-6 md:pt-6 lg:pb-10">
+            <TestnetNote />
+            {app.phase === 'locked' ? <Locked app={app} /> : null}
+            <View route={route} app={app} memory={memory} task={task} setTask={setTask} />
+          </main>
+        </div>
+      ) : (
+        <main id="contenido" className="flex-1">
+          {app.phase === 'working' ? (
+            <Preparing app={app} />
+          ) : route === 'inspector' ? (
+            <div className="mx-auto max-w-[1080px] px-4 py-6 md:px-8">
+              <InspectorView app={app} />
+            </div>
+          ) : (
+            <Landing app={app} />
+          )}
+        </main>
+      )}
+
+      {signedIn ? <BottomNav route={route} pending={app.pending.length} /> : null}
+      <Toast app={app} />
+      <div className={signedIn ? 'pb-20 lg:pb-0' : ''}>
+        <Footer />
       </div>
-
-      <footer className="footer">
-        <p>
-          Aval · confianza para agentes de IA en Monad testnet. Todo el dinero es de prueba.{' '}
-          <a href="https://github.com/Alan021011/Aval" target="_blank" rel="noreferrer">
-            Código en GitHub
-          </a>
-        </p>
-      </footer>
-    </>
+    </div>
   );
 }

@@ -1,83 +1,13 @@
-import type { ButtonHTMLAttributes, ReactNode, SVGProps } from 'react';
+import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { usd } from '../lib/format';
+import { isNever } from '../state/useAval';
 
-const paths = {
-  check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
-  x: <path d="M6 6l12 12M18 6L6 18" />,
-  lock: (
-    <>
-      <rect x="5" y="11" width="14" height="9" rx="2" />
-      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-    </>
-  ),
-  unlock: (
-    <>
-      <rect x="5" y="11" width="14" height="9" rx="2" />
-      <path d="M8 11V8a4 4 0 0 1 7.5-2" />
-    </>
-  ),
-  external: <path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" />,
-  refresh: <path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6" />,
-  shield: (
-    <>
-      <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
-      <path d="M8.5 12l2.5 2.5L15.5 10" />
-    </>
-  ),
-  fingerprint: (
-    <>
-      <path d="M4 9a8.5 8.5 0 0 1 16 0" />
-      <path d="M6 12.5c0-3.3 2.7-6 6-6s6 2.7 6 6c0 2.4-.3 4.4-1.2 6.5" />
-      <path d="M9 13c0-1.7 1.3-3 3-3s3 1.3 3 3c0 2-.3 3.8-1 5.5" />
-      <path d="M12 13v2.5M8.7 16c-.3 1.4-.8 2.7-1.5 4" />
-    </>
-  ),
-  bot: (
-    <>
-      <rect x="5" y="8" width="14" height="11" rx="3" />
-      <path d="M12 8V4M9 13h.01M15 13h.01M9.5 16.5h5" />
-    </>
-  ),
-  alert: <path d="M12 4l9.5 16.5h-19zM12 10v4.5M12 17.5h.01" />,
-  info: (
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 11v5M12 8h.01" />
-    </>
-  ),
-  star: <path d="M12 4l2.4 5 5.4.7-4 3.8 1 5.4-4.8-2.7-4.8 2.7 1-5.4-4-3.8 5.4-.7z" />,
-  clock: (
-    <>
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v5l3 2" />
-    </>
-  ),
-  eye: (
-    <>
-      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
-      <circle cx="12" cy="12" r="2.7" />
-    </>
-  ),
-} as const;
-
-export type IconName = keyof typeof paths;
-
-export function Icon({ name, size = 18, ...rest }: { name: IconName; size?: number } & SVGProps<SVGSVGElement>) {
+/** Íconos de Material Symbols (los mismos del diseño). `name` es el nombre del símbolo, p. ej. "fingerprint". */
+export function Icon({ name, size = 20, fill, className = '' }: { name: string; size?: number; fill?: boolean; className?: string }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-      {...rest}
-    >
-      {paths[name]}
-    </svg>
+    <span className={`icon${fill ? ' icon-fill' : ''} ${className}`} style={{ fontSize: size, width: size, height: size }} aria-hidden="true" translate="no">
+      {name}
+    </span>
   );
 }
 
@@ -85,31 +15,53 @@ export function Spinner({ label }: { label?: string }) {
   return <span className="spinner" role={label ? 'status' : undefined} aria-label={label} />;
 }
 
+const VARIANTS = {
+  primary: 'bg-primary-strong text-white shadow-md shadow-primary-strong/20 hover:brightness-110',
+  secondary: 'bg-surface-mid text-ink hover:bg-surface-high',
+  ghost: 'text-ink-2 hover:bg-surface-low hover:text-ink',
+  danger: 'bg-bad-soft text-on-bad-soft hover:brightness-95',
+  dark: 'bg-term-2 text-on-term hover:brightness-125',
+} as const;
+
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
-  icon?: IconName;
+  variant?: keyof typeof VARIANTS;
+  icon?: string;
   loading?: boolean;
   block?: boolean;
+  size?: 'md' | 'lg';
 };
 
-export function Button({ variant = 'secondary', icon, loading, block, children, className = '', disabled, ...rest }: ButtonProps) {
+export function Button({ variant = 'secondary', icon, loading, block, size = 'md', children, className = '', disabled, ...rest }: ButtonProps) {
   return (
     <button
       type="button"
-      className={`btn btn-${variant}${block ? ' btn-block' : ''} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 ${
+        size === 'lg' ? 'min-h-12 px-5 text-base' : 'min-h-10 px-4 text-sm'
+      } ${VARIANTS[variant]} ${block ? 'w-full' : ''} ${className}`}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       {...rest}
     >
-      {loading ? <Spinner /> : icon ? <Icon name={icon} size={18} /> : null}
+      {loading ? <Spinner /> : icon ? <Icon name={icon} size={size === 'lg' ? 22 : 18} /> : null}
       <span>{children}</span>
     </button>
+  );
+}
+
+/** Enlace con apariencia de botón (para navegar entre vistas). */
+export function LinkButton({ href, variant = 'secondary', icon, children, className = '' }: { href: string; variant?: keyof typeof VARIANTS; icon?: string; children: ReactNode; className?: string }) {
+  return (
+    <a href={href} className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition ${VARIANTS[variant]} ${className}`}>
+      {icon ? <Icon name={icon} size={18} /> : null}
+      <span>{children}</span>
+    </a>
   );
 }
 
 export function Card({
   title,
   subtitle,
+  icon,
   action,
   children,
   className = '',
@@ -117,24 +69,32 @@ export function Card({
 }: {
   title?: ReactNode;
   subtitle?: ReactNode;
+  icon?: string;
   action?: ReactNode;
-  children: ReactNode;
+  children?: ReactNode;
   className?: string;
   id?: string;
 }) {
   return (
-    <section className={`card ${className}`} id={id} aria-labelledby={id ? `${id}-title` : undefined}>
+    <section className={`card ${className}`} id={id} aria-labelledby={id && title ? `${id}-title` : undefined}>
       {title || action ? (
-        <header className="card-head">
-          <div>
-            {title ? (
-              <h2 className="card-title" id={id ? `${id}-title` : undefined}>
-                {title}
-              </h2>
+        <header className="mb-4 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            {icon ? (
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-surface-mid text-primary">
+                <Icon name={icon} />
+              </span>
             ) : null}
-            {subtitle ? <p className="card-sub">{subtitle}</p> : null}
+            <div className="min-w-0">
+              {title ? (
+                <h2 className="text-lg leading-6 font-semibold text-ink" id={id ? `${id}-title` : undefined}>
+                  {title}
+                </h2>
+              ) : null}
+              {subtitle ? <p className="mt-0.5 text-sm text-ink-2">{subtitle}</p> : null}
+            </div>
           </div>
-          {action}
+          {action ? <div className="shrink-0">{action}</div> : null}
         </header>
       ) : null}
       {children}
@@ -142,32 +102,158 @@ export function Card({
   );
 }
 
-export function Badge({ tone = 'neutral', children }: { tone?: 'neutral' | 'ok' | 'warn' | 'bad' | 'accent'; children: ReactNode }) {
-  return <span className={`badge badge-${tone}`}>{children}</span>;
+const TONES = {
+  neutral: 'bg-surface-mid text-ink-2',
+  ok: 'bg-ok-soft text-on-ok-soft',
+  warn: 'bg-warn-soft text-on-warn-soft',
+  bad: 'bg-bad-soft text-on-bad-soft',
+  accent: 'bg-primary-soft text-on-primary-soft',
+} as const;
+
+export type Tone = keyof typeof TONES;
+
+export function Badge({ tone = 'neutral', icon, dot, children, className = '' }: { tone?: Tone; icon?: string; dot?: boolean; children: ReactNode; className?: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[12px] leading-5 font-medium whitespace-nowrap ${TONES[tone]} ${className}`}>
+      {dot ? <span className="size-1.5 rounded-full bg-current" aria-hidden="true" /> : null}
+      {icon ? <Icon name={icon} size={14} /> : null}
+      {children}
+    </span>
+  );
 }
 
-export function Field({
-  label,
-  hint,
-  error,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  error?: string | null;
-  children: ReactNode;
-}) {
+const CALLOUT = {
+  ok: { box: 'bg-ok-soft text-on-ok-soft', icon: 'check_circle' },
+  warn: { box: 'bg-warn-soft text-on-warn-soft', icon: 'notifications_active' },
+  bad: { box: 'bg-bad-soft text-on-bad-soft', icon: 'gpp_bad' },
+  accent: { box: 'bg-primary-soft text-on-primary-soft', icon: 'info' },
+  neutral: { box: 'bg-surface-low text-ink-2', icon: 'info' },
+} as const;
+
+export function Callout({ tone, icon, title, children, action, role }: { tone: Tone; icon?: string; title: ReactNode; children?: ReactNode; action?: ReactNode; role?: 'status' | 'alert' }) {
+  const look = CALLOUT[tone];
   return (
-    <label className="field">
-      <span className="field-label">{label}</span>
+    <div className={`rise flex flex-col gap-3 rounded-2xl p-4 sm:flex-row sm:items-center ${look.box}`} role={role}>
+      <div className="flex min-w-0 flex-1 items-start gap-3">
+        <Icon name={icon ?? look.icon} size={22} fill className="mt-0.5" />
+        <div className="min-w-0">
+          <p className="font-semibold">{title}</p>
+          {children ? <div className="mt-0.5 text-sm opacity-90">{children}</div> : null}
+        </div>
+      </div>
+      {action ? <div className="shrink-0">{action}</div> : null}
+    </div>
+  );
+}
+
+export function Field({ label, hint, error, children }: { label: string; hint?: string; error?: string | null; children: ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1.5">
+      <span className="text-sm font-medium text-ink">{label}</span>
       {children}
       {error ? (
-        <span className="field-error" role="alert">
+        <span className="text-[13px] text-bad" role="alert">
           {error}
         </span>
       ) : hint ? (
-        <span className="field-hint">{hint}</span>
+        <span className="text-[13px] text-muted">{hint}</span>
       ) : null}
     </label>
+  );
+}
+
+/** Barra de progreso. `parts` permite mostrar dos tramos (p. ej., gastado y en espera de aprobación). */
+export function Meter({ parts, label }: { parts: { value: number; className: string }[]; label: string }) {
+  return (
+    <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-surface-high" role="img" aria-label={label}>
+      {parts.map((p, i) => (
+        <div key={i} className={`h-full transition-[width] duration-500 ${p.className}`} style={{ width: `${Math.max(0, Math.min(100, p.value))}%` }} />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Las tres zonas de un permiso: se paga solo, espera tu huella y el contrato lo bloquea. Las proporciones se dibujan
+ * sobre una escala hasta un poco más que el máximo por pago, para que la zona roja siempre se vea.
+ */
+export function ZoneBar({ threshold, maxPerSpend, marker }: { threshold: bigint; maxPerSpend: bigint; marker?: bigint }) {
+  const never = isNever(threshold) || threshold >= maxPerSpend;
+  const scale = Number(maxPerSpend) * 1.3 || 1;
+  const greenEnd = never ? Number(maxPerSpend) / scale : Number(threshold) / scale;
+  const amberEnd = Number(maxPerSpend) / scale;
+  const zones = [
+    { tone: 'text-ok', bar: 'bg-ok', title: 'Se paga solo', range: never ? `hasta ${usd(maxPerSpend)} tUSD` : `hasta ${usd(threshold)} tUSD`, text: 'Sin molestarte.' },
+    ...(never ? [] : [{ tone: 'text-warn', bar: 'bg-[#f5a524]', title: 'Espera tu huella', range: `${usd(threshold)} – ${usd(maxPerSpend)} tUSD`, text: 'Te pide aprobación.' }]),
+    { tone: 'text-bad', bar: 'bg-bad', title: 'Bloqueado', range: `más de ${usd(maxPerSpend)} tUSD`, text: 'El contrato lo rechaza.' },
+  ];
+  const widths = never ? [amberEnd, 1 - amberEnd] : [greenEnd, amberEnd - greenEnd, 1 - amberEnd];
+  const markerAt = marker !== undefined ? Math.min(0.99, Number(marker) / scale) : null;
+
+  return (
+    <div className="rounded-2xl bg-surface-low p-4">
+      <div className="relative pt-1">
+        <div className="flex h-2.5 gap-1" aria-hidden="true">
+          {zones.map((z, i) => (
+            <div key={z.title} className={`h-full rounded-full ${z.bar}`} style={{ width: `${widths[i]! * 100}%` }} />
+          ))}
+        </div>
+        {markerAt !== null ? (
+          <div className="absolute -top-1 h-5 w-0.5 rounded bg-ink" style={{ left: `${markerAt * 100}%` }} aria-hidden="true" />
+        ) : null}
+      </div>
+      <ul className={`mt-3 grid gap-2 ${never ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-3'}`}>
+        {zones.map((z) => (
+          <li key={z.title} className="rounded-xl bg-surface p-3 ring-1 ring-line/60">
+            <p className={`flex items-center gap-1.5 text-[13px] font-semibold ${z.tone}`}>
+              <span className="size-2 rounded-full bg-current" aria-hidden="true" />
+              {z.title}
+            </p>
+            <p className="mt-0.5 font-mono text-[13px] text-ink">{z.range}</p>
+            <p className="text-[12px] text-muted">{z.text}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Un dato grande con su etiqueta (las tarjetas de métricas del diseño). */
+export function Stat({ label, value, unit, note, icon }: { label: string; value: ReactNode; unit?: string; note?: ReactNode; icon?: string }) {
+  return (
+    <div className="card flex flex-col gap-1 !p-4 md:!p-5">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[13px] text-ink-2">{label}</p>
+        {icon ? <Icon name={icon} size={20} className="text-primary" /> : null}
+      </div>
+      <p className="text-3xl leading-tight font-bold tracking-tight text-ink">
+        {value}
+        {unit ? <span className="ml-1 text-base font-semibold text-primary">{unit}</span> : null}
+      </p>
+      {note ? <p className="font-mono text-[12px] text-muted">{note}</p> : null}
+    </div>
+  );
+}
+
+/** Título de cada vista. */
+export function PageHead({ eyebrow, title, subtitle, action }: { eyebrow?: string; title: string; subtitle?: ReactNode; action?: ReactNode }) {
+  return (
+    <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <div className="max-w-2xl">
+        {eyebrow ? <p className="mb-2 font-mono text-[12px] font-medium tracking-wide text-primary uppercase">{eyebrow}</p> : null}
+        <h1 className="text-2xl leading-8 font-bold tracking-tight text-ink md:text-3xl md:leading-10">{title}</h1>
+        {subtitle ? <p className="mt-1.5 text-ink-2">{subtitle}</p> : null}
+      </div>
+      {action ? <div className="shrink-0">{action}</div> : null}
+    </div>
+  );
+}
+
+export function Empty({ icon, children }: { icon: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
+      <Icon name={icon} size={28} />
+      <p className="max-w-sm">{children}</p>
+    </div>
   );
 }
