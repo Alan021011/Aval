@@ -110,7 +110,7 @@ export function createRelayer(options: RelayerOptions) {
 
     /** Entrega tUSD de prueba. Una vez por dirección y por IP en cada ventana de espera. */
     async faucet(to: Address, ctx: Context): Promise<{ hash: Hash; amount: bigint }> {
-      limited(faucetByIp.hit(ctx.ip, 1, now()), 'el faucet ya te entregó fondos desde esta IP');
+      limited(faucetByIp.hit(ctx.ip, limits.faucetPerIpPerWindow, now()), 'el faucet ya entregó fondos varias veces desde esta IP');
       limited(faucetByAddress.hit(to.toLowerCase(), 1, now()), 'el faucet ya entregó fondos a esta dirección');
       await guard(ctx, `faucet:${to}`);
       return execute(async () => ({

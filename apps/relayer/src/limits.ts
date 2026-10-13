@@ -18,8 +18,13 @@ export type Limits = {
   maxBodyBytes: number;
   /** TUSD que entrega el faucet por pedido (en unidades del token). */
   faucetAmount: bigint;
-  /** Segundos que debe esperar una dirección (o IP) entre pedidos al faucet. */
+  /** Segundos que debe esperar una dirección entre pedidos al faucet. También es la ventana del límite por IP. */
   faucetCooldownSeconds: number;
+  /**
+   * Pedidos al faucet por IP en cada ventana. Más de uno porque varias personas pueden probar desde la misma red
+   * (por ejemplo, los jueces en un mismo lugar); cada dirección sigue recibiendo una sola vez por ventana.
+   */
+  faucetPerIpPerWindow: number;
   /** Veces que se reintenta un envío que chocó con otra transacción de la misma cuenta (otra instancia del servicio). */
   maxNonceRetries: number;
 };
@@ -95,5 +100,6 @@ export const defaultLimits = (allowedTokens: Address[]): Limits => ({
   maxBodyBytes: 16 * 1024,
   faucetAmount: 500_000_000n, // 500 tUSD
   faucetCooldownSeconds: 3600,
+  faucetPerIpPerWindow: 10,
   maxNonceRetries: 6,
 });

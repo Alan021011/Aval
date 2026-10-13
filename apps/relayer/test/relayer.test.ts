@@ -251,13 +251,17 @@ describe('protege los fondos del relayer', () => {
     expect((await errorOf(clientFrom('10.2.0.2').register(signed)))?.code).toBe('ExpiredSignature');
   });
 
-  it('el faucet entrega una sola vez por dirección y por IP', async (ctx) => {
+  it('el faucet entrega una vez por dirección, y varias personas pueden pedir desde la misma IP hasta un tope', async (ctx) => {
     needAnvil(ctx);
-    const { clientFrom } = setup();
+    const { clientFrom } = setup({ faucetPerIpPerWindow: 2 });
     const user = newUser().account.address;
 
     await clientFrom('10.3.0.1').faucet(user);
+    // La misma dirección no vuelve a recibir, aunque pida desde otra IP.
     expect((await errorOf(clientFrom('10.3.0.2').faucet(user)))?.code).toBe('RateLimited');
+    // Otra persona en la misma red sí recibe (como dos jueces en el mismo lugar)…
+    await clientFrom('10.3.0.1').faucet(newUser().account.address);
+    // …hasta el tope por IP.
     expect((await errorOf(clientFrom('10.3.0.1').faucet(newUser().account.address)))?.code).toBe('RateLimited');
   });
 

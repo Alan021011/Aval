@@ -51,7 +51,7 @@ Sin estas reglas, cualquiera podría gastarle el gas:
 4. **Límites por IP y por usuario** (30 y 10 por minuto por defecto), con `Retry-After`.
 5. **Tope diario de transacciones** (2.000 por defecto).
 6. **Saldo mínimo:** si baja de 0,5 MON deja de enviar en vez de vaciarse.
-7. **Faucet:** una vez por dirección y por IP cada hora.
+7. **Faucet:** una vez por dirección cada hora, y hasta 10 pedidos por IP en esa hora (`FAUCET_PER_IP`), para que varias personas puedan probar desde la misma red.
 8. **Una transacción a la vez**, para que el nonce nunca se pise.
 9. **CORS** solo para los orígenes autorizados, y **tamaño máximo** de solicitud.
 10. **Los errores no filtran detalles internos ni la clave.**

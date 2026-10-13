@@ -25,6 +25,7 @@ const env = z.object({
   MAX_TX_PER_DAY: z.coerce.number().int().min(1).optional(),
   FAUCET_AMOUNT_TUSD: z.coerce.number().min(0).max(1000).optional(),
   FAUCET_COOLDOWN_SECONDS: z.coerce.number().int().min(0).optional(),
+  FAUCET_PER_IP: z.coerce.number().int().min(1).max(1000).optional(),
   MAX_NONCE_RETRIES: z.coerce.number().int().min(0).max(10).optional(),
   /** Agente de demostración (opcional). Si se pone la clave, hacen falta también la billetera y el ID del servicio. */
   AGENT_PRIVATE_KEY: z.string().regex(/^0x[0-9a-fA-F]{64}$/, 'AGENT_PRIVATE_KEY debe ser 0x + 64 hex').optional(),
@@ -84,6 +85,7 @@ export function loadConfig(source: Record<string, string | undefined> = process.
       ...(e.MAX_TX_PER_DAY ? { maxTransactionsPerDay: e.MAX_TX_PER_DAY } : {}),
       ...(e.FAUCET_AMOUNT_TUSD !== undefined ? { faucetAmount: BigInt(Math.round(e.FAUCET_AMOUNT_TUSD * 1e6)) } : {}),
       ...(e.FAUCET_COOLDOWN_SECONDS !== undefined ? { faucetCooldownSeconds: e.FAUCET_COOLDOWN_SECONDS } : {}),
+      ...(e.FAUCET_PER_IP !== undefined ? { faucetPerIpPerWindow: e.FAUCET_PER_IP } : {}),
       ...(e.MAX_NONCE_RETRIES !== undefined ? { maxNonceRetries: e.MAX_NONCE_RETRIES } : {}),
     },
   };
