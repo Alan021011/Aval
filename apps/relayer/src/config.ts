@@ -30,8 +30,8 @@ const env = z.object({
   /** Agente de demostración (opcional). Si se pone la clave, hacen falta también la billetera y el ID del servicio. */
   /** Agente con Qwen (opcional): sin clave, la ruta /agent/task responde que no está disponible. */
   QWEN_API_KEY: z.string().min(10).optional(),
-  QWEN_BASE_URL: z.string().url().default('https://dashscope-intl.aliyuncs.com/compatible-mode/v1'),
-  QWEN_MODEL: z.string().min(1).default('qwen-max'),
+  QWEN_BASE_URL: z.string().url().default('https://maas.qwencloudapi.com/compatible-mode/v1'),
+  QWEN_MODEL: z.string().min(1).default('qwen3.8-max'),
   AGENT_PRIVATE_KEY: z.string().regex(/^0x[0-9a-fA-F]{64}$/, 'AGENT_PRIVATE_KEY debe ser 0x + 64 hex').optional(),
   SERVICE_AGENT_ADDRESS: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
   SERVICE_AGENT_ID: z.string().regex(/^\d+$/).optional(),

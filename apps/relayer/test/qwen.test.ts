@@ -46,6 +46,22 @@ describe('planificador del agente', () => {
     expect(last.content).toContain('"monto":"80"');
   });
 
+  it('en modo thinking devuelve el razonamiento de Qwen con su mensaje y lo muestra como plan', async () => {
+    const { chat, seen } = scripted([
+      { content: null, reasoning_content: 'Primero reviso el permiso.', tool_calls: [call('1', 'consultar_permiso')] },
+      { content: 'Listo.', reasoning_content: 'Ya tengo lo que necesito.' },
+    ]);
+    const result = await runPlanner({
+      chat,
+      system: 's',
+      task: 't',
+      tools: { consultar_permiso: { spec: { type: 'function', function: { name: 'consultar_permiso', description: '', parameters: {} } }, run: async () => ({}) } },
+    });
+    expect(result.steps.map((s) => s.kind)).toEqual(['thought', 'tool', 'thought', 'answer']);
+    const assistant = seen[1]!.find((m) => m.role === 'assistant');
+    expect(assistant).toMatchObject({ reasoning_content: 'Primero reviso el permiso.' });
+  });
+
   it('un error de herramienta o una herramienta que no existe no cortan el bucle', async () => {
     const { chat, seen } = scripted([
       { content: null, tool_calls: [call('1', 'rota'), call('2', 'inventada')] },
@@ -83,7 +99,8 @@ describe('cliente de Qwen', () => {
 
     expect(requests[0]!.url).toBe('https://qwen.test/v1/chat/completions');
     expect(requests[0]!.headers.authorization).toBe('Bearer sk-secreta-123');
-    expect(requests[0]!.body).toMatchObject({ model: 'qwen-max', tool_choice: 'auto' });
+    expect(requests[0]!.body).toMatchObject({ model: 'qwen-max', parallel_tool_calls: true });
+    expect(requests[0]!.body).not.toHaveProperty('tool_choice');
     expect(reply.tool_calls?.[0]?.function.name).toBe('consultar_permiso');
 
     const failing: FetchFn = async () => ({ ok: false, status: 401, json: async () => ({ error: { message: 'Invalid API key' } }) });

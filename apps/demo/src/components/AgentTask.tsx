@@ -94,7 +94,15 @@ export function AgentTaskCard({ app, memory }: { app: App; memory: Memory }) {
             <>
               <ol className="steps-agent">
                 {result.steps.map((step, i) =>
-                  step.kind === 'tool' ? (
+                  step.kind === 'thought' ? (
+                    <li key={i} className="step-agent">
+                      <Icon name="info" size={16} />
+                      <div>
+                        <strong>Qwen pensó</strong>
+                        <p>{step.text.length > 280 ? `${step.text.slice(0, 280)}…` : step.text}</p>
+                      </div>
+                    </li>
+                  ) : step.kind === 'tool' ? (
                     <li key={i} className={`step-agent step-${summary(step).tone}`}>
                       <Icon name={summary(step).tone === 'ok' ? 'check' : 'shield'} size={16} />
                       <div>

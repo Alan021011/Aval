@@ -5,7 +5,7 @@
 
 export type QwenConfig = {
   apiKey: string;
-  /** Por ejemplo, https://dashscope-intl.aliyuncs.com/compatible-mode/v1 */
+  /** Qwen Cloud: https://maas.qwencloudapi.com/compatible-mode/v1 */
   baseUrl: string;
   model: string;
 };
@@ -14,7 +14,8 @@ export type ToolCall = { id: string; type: 'function'; function: { name: string;
 
 export type ChatMessage =
   | { role: 'system' | 'user'; content: string }
-  | { role: 'assistant'; content: string | null; tool_calls?: ToolCall[] }
+  // `reasoning_content`: el razonamiento de Qwen en modo thinking. Hay que devolverlo junto con su mensaje.
+  | { role: 'assistant'; content: string | null; tool_calls?: ToolCall[]; reasoning_content?: string }
   | { role: 'tool'; tool_call_id: string; content: string };
 
 export type ToolSpec = {
@@ -22,7 +23,7 @@ export type ToolSpec = {
   function: { name: string; description: string; parameters: Record<string, unknown> };
 };
 
-export type ChatReply = { content: string | null; tool_calls?: ToolCall[] };
+export type ChatReply = { content: string | null; tool_calls?: ToolCall[]; reasoning_content?: string };
 export type ChatFn = (messages: ChatMessage[], tools: ToolSpec[]) => Promise<ChatReply>;
 
 export type FetchFn = (url: string, init: { method: 'POST'; headers: Record<string, string>; body: string; signal?: AbortSignal }) => Promise<{
@@ -38,7 +39,8 @@ export function qwenChat(config: QwenConfig, fetchFn: FetchFn = (url, init) => f
     const response = await fetchFn(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${config.apiKey}` },
-      body: JSON.stringify({ model: config.model, messages, tools, tool_choice: 'auto', temperature: 0.2 }),
+      // Sin tool_choice (por defecto es auto; Qwen pide no forzarlo al resumir) y con varias herramientas por vuelta.
+      body: JSON.stringify({ model: config.model, messages, tools, parallel_tool_calls: true }),
       signal: AbortSignal.timeout(25_000),
     });
     const body = (await response.json().catch(() => ({}))) as {
@@ -48,13 +50,18 @@ export function qwenChat(config: QwenConfig, fetchFn: FetchFn = (url, init) => f
     if (!response.ok) throw new Error(`Qwen respondió HTTP ${response.status}: ${body.error?.message ?? 'sin detalle'}`);
     const message = body.choices?.[0]?.message;
     if (!message) throw new Error('Qwen no devolvió ningún mensaje.');
-    return { content: message.content ?? null, ...(message.tool_calls?.length ? { tool_calls: message.tool_calls } : {}) };
+    return {
+      content: message.content ?? null,
+      ...(message.tool_calls?.length ? { tool_calls: message.tool_calls } : {}),
+      ...(message.reasoning_content ? { reasoning_content: message.reasoning_content } : {}),
+    };
   };
 }
 
 export type Tool = { spec: ToolSpec; run(args: Record<string, unknown>): Promise<unknown> };
 
 export type Step =
+  | { kind: 'thought'; text: string }
   | { kind: 'tool'; name: string; args: Record<string, unknown>; result: unknown }
   | { kind: 'answer'; text: string };
 
@@ -82,12 +89,19 @@ export async function runPlanner(options: {
 
   for (let round = 0; round < (options.maxSteps ?? 8); round++) {
     const reply = await options.chat(messages, specs);
+    // El plan que razonó Qwen se muestra (recortado) para que se vea cómo decidió.
+    if (reply.reasoning_content?.trim()) steps.push({ kind: 'thought', text: reply.reasoning_content.trim().slice(0, 700) });
     if (!reply.tool_calls?.length) {
       const answer = reply.content?.trim() || 'Listo.';
       steps.push({ kind: 'answer', text: answer });
       return { steps, answer };
     }
-    messages.push({ role: 'assistant', content: reply.content, tool_calls: reply.tool_calls });
+    messages.push({
+      role: 'assistant',
+      content: reply.content,
+      tool_calls: reply.tool_calls,
+      ...(reply.reasoning_content ? { reasoning_content: reply.reasoning_content } : {}),
+    });
     for (const call of reply.tool_calls) {
       let args: Record<string, unknown> = {};
       let result: unknown;

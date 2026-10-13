@@ -24,6 +24,7 @@ export type RelayerHealth = {
 /** Datos del agente de demostración de un relayer. `ready` es falso si se quedó sin gas. */
 /** Un paso del agente con Qwen: una herramienta que usó (con su resultado) o su respuesta final. */
 export type AgentTaskStep =
+  | { kind: 'thought'; text: string }
   | { kind: 'tool'; name: string; args: Record<string, unknown>; result: unknown }
   | { kind: 'answer'; text: string };
 
