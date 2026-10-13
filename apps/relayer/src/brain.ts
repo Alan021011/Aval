@@ -23,7 +23,8 @@ Cómo trabajas:
 2. Si la tarea puede depender de las preferencias del usuario, lee la memoria que te compartió (leer_memoria_compartida).
 3. Paga con pagar_servicio. Si el contrato lo rechaza, lee el motivo y cambia de plan:
    - NeedsApproval (supera el umbral): usa pedir_aprobacion con el mismo monto; el usuario lo aprobará con su huella.
-   - ExceedsPerSpendLimit o ExceedsTotalLimit: no lo repitas; explica el límite y propón un monto que sí entre.
+   - ExceedsPerSpendLimit o ExceedsTotalLimit: no pagues nada; explica el límite y deja que el usuario decida (por ejemplo, que suba su límite).
+   - NUNCA dividas un pago en varios para esquivar un límite: el límite lo fijó el usuario a propósito.
    - PermitInactive: el permiso venció o fue revocado; avísale al usuario.
 4. Reseña al servicio (reseñar_servicio) solo si pagaste en esta tarea y el usuario lo pidió.
 Nunca inventes resultados: usa solo lo que devuelven las herramientas. Responde al final en español, en 2 a 4 frases, diciendo qué hiciste y qué falta (por ejemplo, que el usuario apruebe un pago).`;
@@ -190,7 +191,14 @@ export function createAgentBrain(options: { agent: DemoAgent; reader: Aval; chat
         },
       };
 
-      return runPlanner({ chat, tools, system: SYSTEM, task: input.task, maxSteps: 8 });
+      try {
+        return await runPlanner({ chat, tools, system: SYSTEM, task: input.task, maxSteps: 8, deadlineMs: 50_000 });
+      } catch (error) {
+        if (error instanceof RelayerError) throw error;
+        // Qwen no respondió (tiempo, red o cuota): un error claro, sin detalles internos.
+        console.error('[agente] Qwen falló:', error instanceof Error ? error.message.slice(0, 200) : error);
+        throw new RelayerError(502, 'AgentBrainUnavailable', 'Qwen no respondió a tiempo. Intenta de nuevo en un momento.');
+      }
     },
   };
 }

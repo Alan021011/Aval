@@ -8,6 +8,8 @@ export type QwenConfig = {
   /** Qwen Cloud: https://maas.qwencloudapi.com/compatible-mode/v1 */
   baseUrl: string;
   model: string;
+  /** Tokens máximos de razonamiento por vuelta (modo thinking): acota cuánto tarda cada respuesta. */
+  thinkingBudget?: number;
 };
 
 export type ToolCall = { id: string; type: 'function'; function: { name: string; arguments: string } };
@@ -24,7 +26,7 @@ export type ToolSpec = {
 };
 
 export type ChatReply = { content: string | null; tool_calls?: ToolCall[]; reasoning_content?: string };
-export type ChatFn = (messages: ChatMessage[], tools: ToolSpec[]) => Promise<ChatReply>;
+export type ChatFn = (messages: ChatMessage[], tools: ToolSpec[], options?: { timeoutMs?: number }) => Promise<ChatReply>;
 
 export type FetchFn = (url: string, init: { method: 'POST'; headers: Record<string, string>; body: string; signal?: AbortSignal }) => Promise<{
   ok: boolean;
@@ -35,13 +37,19 @@ export type FetchFn = (url: string, init: { method: 'POST'; headers: Record<stri
 /** Llamada a Qwen con herramientas. La clave nunca se registra ni se devuelve en los errores. */
 export function qwenChat(config: QwenConfig, fetchFn: FetchFn = (url, init) => fetch(url, init)): ChatFn {
   const url = `${config.baseUrl.replace(/\/+$/, '')}/chat/completions`;
-  return async (messages, tools) => {
+  return async (messages, tools, options = {}) => {
     const response = await fetchFn(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${config.apiKey}` },
       // Sin tool_choice (por defecto es auto; Qwen pide no forzarlo al resumir) y con varias herramientas por vuelta.
-      body: JSON.stringify({ model: config.model, messages, tools, parallel_tool_calls: true }),
-      signal: AbortSignal.timeout(25_000),
+      body: JSON.stringify({
+        model: config.model,
+        messages,
+        tools,
+        parallel_tool_calls: true,
+        thinking_budget: config.thinkingBudget ?? 1500,
+      }),
+      signal: AbortSignal.timeout(options.timeoutMs ?? 40_000),
     });
     const body = (await response.json().catch(() => ({}))) as {
       choices?: { message?: ChatReply }[];
@@ -79,7 +87,11 @@ export async function runPlanner(options: {
   system: string;
   task: string;
   maxSteps?: number;
+  /** Tiempo total para la tarea (ms). Al acabarse, se responde con lo hecho hasta ahí en vez de fallar. */
+  deadlineMs?: number;
 }): Promise<{ steps: Step[]; answer: string }> {
+  const started = Date.now();
+  const deadline = options.deadlineMs ?? 50_000;
   const specs = Object.values(options.tools).map((t) => t.spec);
   const messages: ChatMessage[] = [
     { role: 'system', content: options.system },
@@ -88,7 +100,13 @@ export async function runPlanner(options: {
   const steps: Step[] = [];
 
   for (let round = 0; round < (options.maxSteps ?? 8); round++) {
-    const reply = await options.chat(messages, specs);
+    const left = deadline - (Date.now() - started);
+    if (left < 5_000) {
+      const answer = 'No alcancé a terminar a tiempo. Esto es lo que hice hasta ahora; puedes pedírmelo de nuevo.';
+      steps.push({ kind: 'answer', text: answer });
+      return { steps, answer };
+    }
+    const reply = await options.chat(messages, specs, { timeoutMs: Math.min(40_000, left) });
     // El plan que razonó Qwen se muestra (recortado) para que se vea cómo decidió.
     if (reply.reasoning_content?.trim()) steps.push({ kind: 'thought', text: reply.reasoning_content.trim().slice(0, 700) });
     if (!reply.tool_calls?.length) {

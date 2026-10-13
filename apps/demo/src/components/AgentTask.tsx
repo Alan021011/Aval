@@ -28,7 +28,17 @@ function summary(step: Extract<AgentTaskStep, { kind: 'tool' }>): { tone: 'ok' |
       return r.acceso ? { tone: 'ok', text: `«${String(r.texto)}»` } : { tone: 'bad', text: String(r.motivo) };
     case 'pagar_servicio':
     case 'pedir_aprobacion':
-      if (r.ok === false) return { tone: 'bad', text: `El contrato lo rechazó (${String(r.rechazoDelContrato)}): ${String(r.explicacion)}` };
+      if (r.ok === false) {
+        const why: Record<string, string> = {
+          NeedsApproval: 'supera tu umbral de aprobación',
+          ExceedsPerSpendLimit: 'supera tu máximo por pago',
+          ExceedsTotalLimit: 'supera lo que queda de tu permiso',
+          PermitInactive: 'el permiso venció o fue revocado',
+        };
+        const code = String(r.rechazoDelContrato);
+        const amounts = typeof r.monto === 'number' && typeof r.limite === 'number' ? ` (${r.monto} tUSD; límite ${r.limite} tUSD)` : '';
+        return { tone: 'bad', text: `El contrato lo rechazó: ${why[code] ?? code}${amounts}.` };
+      }
       return step.name === 'pagar_servicio'
         ? { tone: 'ok', text: `Pagó ${String(r.pagado)} tUSD.` }
         : { tone: 'ok', text: `Pedido #${String(r.pedido)} pendiente: apruébalo abajo con tu huella.` };
