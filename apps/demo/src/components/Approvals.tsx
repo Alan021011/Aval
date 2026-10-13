@@ -79,6 +79,8 @@ export function ApprovalsView({ app }: { app: App }) {
             </Card>
           ) : (
             items.map(({ requestId, request }) => {
+              const remaining = current ? current.permit.terms.maxTotal - current.permit.spent : 0n;
+              const fits = !current || (request.amount <= remaining && request.amount <= current.permit.terms.maxPerSpend);
               const threshold = current?.permit.terms.approvalThreshold;
               return (
                 <Card key={requestId.toString()} className="rise">
@@ -115,10 +117,17 @@ export function ApprovalsView({ app }: { app: App }) {
                   ) : null}
 
                   <ul className="mb-5 flex flex-col gap-2 text-sm">
-                    <li className="flex items-center gap-2 rounded-xl bg-surface-low px-3 py-2">
-                      <Icon name="check_circle" size={18} fill className="text-ok" />
-                      Dentro de tu máximo por pago y de lo que queda del permiso
-                    </li>
+                    {fits ? (
+                      <li className="flex items-center gap-2 rounded-xl bg-surface-low px-3 py-2">
+                        <Icon name="check_circle" size={18} fill className="text-ok" />
+                        Dentro de tu máximo por pago y de lo que queda del permiso
+                      </li>
+                    ) : (
+                      <li className="flex items-center gap-2 rounded-xl bg-bad-soft px-3 py-2 text-on-bad-soft">
+                        <Icon name="gpp_bad" size={18} />
+                        Ya no cabe: tu permiso solo tiene {usd(remaining)} tUSD disponibles. Si lo apruebas, el contrato lo rechazará.
+                      </li>
+                    )}
                     <li className="flex items-center gap-2 rounded-xl bg-surface-low px-3 py-2">
                       <Icon name="check_circle" size={18} fill className="text-ok" />
                       Solo puede ir al {SERVICE_NAME}

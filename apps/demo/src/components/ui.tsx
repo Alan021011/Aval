@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { type ButtonHTMLAttributes, type ReactNode, useEffect, useRef } from 'react';
 import { usd } from '../lib/format';
 import { isNever } from '../state/useAval';
 
@@ -254,6 +254,20 @@ export function Empty({ icon, children }: { icon: string; children: ReactNode })
     <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-line px-4 py-8 text-center text-sm text-muted">
       <Icon name={icon} size={28} />
       <p className="max-w-sm">{children}</p>
+    </div>
+  );
+}
+
+/** Al aparecer se desplaza a la vista: en el móvil el resultado de una acción queda bajo el pliegue. */
+export function ScrollIntoView({ children, className }: { children: ReactNode; className?: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => ref.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+  return (
+    <div ref={ref} className={className}>
+      {children}
     </div>
   );
 }

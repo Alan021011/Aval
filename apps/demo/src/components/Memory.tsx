@@ -85,7 +85,7 @@ export function MemoryView({ app, memory }: { app: App; memory: Memory }) {
                     <Icon name="lock" size={16} />
                     Cifrado con tu clave privada de memoria
                   </p>
-                  <Button icon="lock" loading={app.busy === 'memory-private'} disabled={locked || busy} onClick={() => memory.savePrivate(privateDraft)}>
+                  <Button icon="lock" loading={app.busy === 'memory-private'} disabled={locked || busy || !privateDraft.trim()} onClick={() => memory.savePrivate(privateDraft)}>
                     Guardar cifrado
                   </Button>
                 </div>

@@ -4,7 +4,7 @@ import { usd } from '../lib/format';
 import { href } from '../lib/router';
 import type { App } from '../state/useAval';
 import type { Memory } from '../state/useMemory';
-import { Badge, Button, Card, Empty, Icon, LinkButton, PageHead } from './ui';
+import { Badge, Button, Card, Empty, Icon, LinkButton, PageHead, ScrollIntoView } from './ui';
 
 const DEFAULT_TASK = 'Necesito traducir un contrato. El servicio cobra 75 tUSD: contrátalo si su reputación es buena y ten en cuenta mis preferencias.';
 
@@ -29,7 +29,7 @@ const TOOLS = [
   ['star', 'Reseñar al servicio'],
 ] as const;
 
-type Summary ={ tone: 'ok' | 'bad' | 'warn'; text: string; tag?: string };
+type Summary = { tone: 'ok' | 'bad' | 'warn'; text: string; tag?: string; icon?: string };
 
 function summary(step: Extract<AgentTaskStep, { kind: 'tool' }>): Summary {
   const r = (step.result ?? {}) as Record<string, unknown>;
@@ -44,7 +44,7 @@ function summary(step: Extract<AgentTaskStep, { kind: 'tool' }>): Summary {
         text: r.promedio === null ? 'Todavía sin reseñas que cuenten.' : `${r.promedio}/100 con ${r.reseniasQueCuentan} reseña(s) de clientes que pagaron.`,
       };
     case 'leer_memoria_compartida':
-      return r.acceso ? { tone: 'ok', tag: 'Autorizado', text: `«${String(r.texto)}»` } : { tone: 'bad', tag: 'Sin acceso', text: String(r.motivo) };
+      return r.acceso ? { tone: 'ok', tag: 'Autorizado', text: `«${String(r.texto)}»` } : { tone: 'warn', tag: 'Sin acceso', icon: 'key_off', text: String(r.motivo) };
     case 'pagar_servicio':
     case 'pedir_aprobacion':
       if (r.ok === false) {
@@ -56,7 +56,7 @@ function summary(step: Extract<AgentTaskStep, { kind: 'tool' }>): Summary {
         };
         const code = String(r.rechazoDelContrato);
         const amounts = typeof r.monto === 'number' && typeof r.limite === 'number' ? ` (${r.monto} tUSD; límite ${r.limite} tUSD)` : '';
-        return { tone: 'bad', tag: code, text: `El contrato lo rechazó: ${why[code] ?? code}${amounts}.` };
+        return { tone: code === 'NeedsApproval' ? 'warn' : 'bad', tag: code, text: `El contrato lo rechazó: ${why[code] ?? code}${amounts}.` };
       }
       return step.name === 'pagar_servicio'
         ? { tone: 'ok', tag: 'Pagado', text: `Pagó ${String(r.pagado)} tUSD.` }
@@ -74,6 +74,9 @@ const STEP_LOOK = {
   bad: { box: 'bg-bad-soft/60 ring-1 ring-bad/30', dot: 'bg-bad-soft text-on-bad-soft', icon: 'gpp_bad', title: 'text-on-bad-soft', tag: 'bad' },
 } as const;
 
+/** Recorta en el último espacio, para no cortar una palabra a medias. */
+const clip = (text: string, max: number) => (text.length <= max ? text : `${text.slice(0, text.lastIndexOf(' ', max) > 0 ? text.lastIndexOf(' ', max) : max)}…`);
+
 function Trace({ result }: { result: TaskResult }) {
   return (
     <ol className="relative flex flex-col gap-2.5 before:absolute before:top-4 before:bottom-4 before:left-[27px] before:w-px before:bg-line">
@@ -85,8 +88,10 @@ function Trace({ result }: { result: TaskResult }) {
                 <Icon name="psychology" size={16} />
               </span>
               <div className="min-w-0">
-                <p className="font-semibold">Qwen pensó</p>
-                <p className="text-sm text-ink-2 italic">{step.text.length > 280 ? `${step.text.slice(0, 280)}…` : step.text}</p>
+                <p className="font-semibold">
+                  Razonamiento de Qwen <span className="text-[12px] font-normal text-muted">(texto original del modelo, en inglés)</span>
+                </p>
+                <p className="text-sm text-ink-2 italic">{clip(step.text, 280)}</p>
               </div>
             </li>
           );
@@ -97,7 +102,7 @@ function Trace({ result }: { result: TaskResult }) {
         return (
           <li key={i} className={`rise relative flex items-start gap-3 rounded-2xl p-3.5 ${look.box}`}>
             <span className={`relative z-10 grid size-7 shrink-0 place-items-center rounded-full ${look.dot}`}>
-              <Icon name={look.icon} size={16} />
+              <Icon name={s.icon ?? look.icon} size={16} />
             </span>
             <div className="min-w-0 flex-1">
               <p className={`flex flex-wrap items-center gap-2 font-semibold ${look.title}`}>
@@ -234,7 +239,7 @@ export function AgentTaskView({ app, memory, result, setResult }: { app: App; me
             ) : null}
 
             {result ? (
-              <div className="mt-6">
+              <ScrollIntoView key={result.ms} className="mt-6">
                 <div className="mb-3 flex items-center justify-between gap-2 border-b border-line/60 pb-2">
                   <p className="flex items-center gap-2 text-[13px] font-semibold tracking-wide uppercase">
                     <span className="size-2 rounded-full bg-primary-strong" aria-hidden="true" />
@@ -254,7 +259,7 @@ export function AgentTaskView({ app, memory, result, setResult }: { app: App; me
                     <p className="text-[16px] leading-relaxed">“{result.answer}”</p>
                   </div>
                 </div>
-              </div>
+              </ScrollIntoView>
             ) : null}
 
             {pending ? (

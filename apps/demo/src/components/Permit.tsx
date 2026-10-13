@@ -2,7 +2,30 @@ import { useMemo, useState } from 'react';
 import { parseUsd, remainingTime, usd } from '../lib/format';
 import { href } from '../lib/router';
 import { type App, type PermitForm, isNever, scenarios } from '../state/useAval';
-import { Badge, Button, Callout, Card, Field, Icon, LinkButton, Meter, PageHead, ZoneBar } from './ui';
+import { Badge, Button, Callout, Card, Field, Icon, LinkButton, Meter, PageHead, ScrollIntoView, ZoneBar } from './ui';
+
+/** Revocar es irreversible y se registra en la cadena: pide un segundo toque para confirmar. */
+function RevokeButton({ app, permitId, locked }: { app: App; permitId: bigint; locked: boolean }) {
+  const [confirming, setConfirming] = useState(false);
+  if (!confirming) {
+    return (
+      <Button variant="danger" icon="cancel" disabled={locked || !!app.busy} onClick={() => setConfirming(true)}>
+        Revocar permiso
+      </Button>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-2" role="alertdialog" aria-label="Confirmar revocación">
+      <span className="text-[13px] font-medium">¿Revocar? El agente dejará de poder gastar.</span>
+      <Button variant="danger" icon="cancel" loading={app.busy === 'revoke'} disabled={locked || !!app.busy} onClick={() => app.revokePermit(permitId)}>
+        Sí, revocar
+      </Button>
+      <Button disabled={app.busy === 'revoke'} onClick={() => setConfirming(false)}>
+        Cancelar
+      </Button>
+    </div>
+  );
+}
 
 export const SERVICE_NAME = 'Servicio de traducción';
 
@@ -130,9 +153,7 @@ export function PermitSummary({ app, compact }: { app: App; compact?: boolean })
             Probar a tu agente
           </LinkButton>
         ) : (
-          <Button variant="danger" icon="cancel" loading={app.busy === 'revoke'} disabled={locked || !!app.busy} onClick={() => app.revokePermit(permitId)}>
-            Revocar permiso
-          </Button>
+          <RevokeButton app={app} permitId={permitId} locked={locked} />
         )}
       </div>
     </Card>
@@ -245,6 +266,7 @@ function AgentPanel({ app }: { app: App }) {
 
       <div className="mt-4" aria-live="polite">
         {result ? (
+          <ScrollIntoView key={result.text}>
           <Callout
             tone={result.kind === 'blocked' ? 'bad' : 'ok'}
             title={result.kind === 'blocked' ? 'El contrato lo bloqueó' : 'Hecho'}
@@ -259,6 +281,7 @@ function AgentPanel({ app }: { app: App }) {
             {result.text}
             {result.kind === 'blocked' ? <span className="mt-1 block font-mono text-[12px] opacity-80">Tus fondos no se movieron y el usuario no pagó gas.</span> : null}
           </Callout>
+          </ScrollIntoView>
         ) : null}
       </div>
     </Card>

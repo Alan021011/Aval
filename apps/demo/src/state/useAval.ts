@@ -118,11 +118,13 @@ export function blockedMessage(error: AvalError): string {
   }
 }
 
+const BLOCKING = new Set(['ExceedsPerSpendLimit', 'ExceedsTotalLimit', 'NeedsApproval']);
+
 export function friendlyError(error: unknown): string {
   if (isMeraError(error) && error.code === 'PRF_UNAVAILABLE') {
     return 'Tu dispositivo o navegador no entrega la clave de la passkey (PRF). Prueba con Chrome y las contraseñas de Google, iCloud Keychain o 1Password, o usa el modo de prueba.';
   }
-  if (error instanceof AvalError) return error.message;
+  if (error instanceof AvalError) return BLOCKING.has(error.code) ? blockedMessage(error) : error.message;
   if (error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'AbortError')) {
     return 'Se canceló la verificación con tu huella.';
   }
@@ -323,17 +325,14 @@ export function useAval() {
       setBusy('enter');
       setNeedsFallback(false);
       setMode(kind);
-      startedAt.current = performance.now();
       const current = backend.current?.mode === kind ? backend.current : kind === 'real' ? realBackend() : simulatedBackend();
-      // Al desbloquear se reutiliza la misma passkey: se cuentan solo las verificaciones de esta entrada.
-      const promptsBefore = current.prompts();
+      // Las métricas de «listo en X s» describen solo el registro inicial: desbloquear no las reescribe.
       try {
         const opened = await signIn(current);
         const changed = session.current && session.current.address !== opened.address;
         bindSession(opened, current);
         if (changed) setSnapshot(null);
         setSnapshot(await load(opened.address));
-        setMetrics((m) => ({ ...m, readyMs: performance.now() - startedAt.current, readyPrompts: current.prompts() - promptsBefore }));
         setLastResult(null);
         setPhase('in');
         addLog({ kind: 'info', title: 'Sesión abierta con la huella: estado reconstruido desde la cadena' });

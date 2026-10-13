@@ -93,7 +93,7 @@ export function TestnetNote() {
 function Count({ n }: { n: number }) {
   if (n <= 0) return null;
   return (
-    <span className="grid min-w-5 place-items-center rounded-full bg-warn px-1 text-[11px] leading-5 font-bold text-white" aria-label={`${n} pendiente${n > 1 ? 's' : ''}`}>
+    <span className="grid min-w-5 place-items-center rounded-full bg-warn px-1 text-[11px] leading-5 font-bold text-[#2b1700]" aria-label={`${n} pendiente${n > 1 ? 's' : ''}`}>
       {n}
     </span>
   );
