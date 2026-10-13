@@ -20,6 +20,9 @@ Solo envía cinco operaciones con los contratos de Aval. No envía datos arbitra
 | `POST /agent/spend` | El agente de demostración paga al servicio dentro del permiso | — |
 | `POST /agent/request` | El agente pide un pago que supera el umbral de aprobación | — |
 | `POST /agent/review` | El agente reseña al servicio (de 0 a 100) | — |
+| `POST /agent/task` | Una tarea en lenguaje natural: **Qwen 3.8 Max** planifica y usa herramientas (permiso, reputación, memoria compartida, pagar, pedir aprobación, reseñar) | — |
+| `POST /agent/recall` | El agente lee la parte de la memoria cifrada que el usuario le compartió, con la clave que le dio | — |
+| `POST /relay/memory` | Guarda en `MemoryVault` un casillero de memoria (ya cifrado) | EIP-712 `Store` |
 | `GET /health` | Estado y saldo del relayer | — |
 
 ## Agente de demostración
@@ -40,6 +43,17 @@ node scripts/smoke-agent.mjs [url]
 ```
 
 Comprueba que cada rechazo sea **con el código exacto esperado** (un fallo por falta de gas no cuenta como éxito) y termina con código de salida distinto de cero si algo no coincide.
+
+## Agente con Qwen 3.8 Max
+
+Con `QWEN_API_KEY` (Qwen Cloud), `POST /agent/task` recibe una tarea y `qwen3.8-max` la resuelve en varios pasos con herramientas reales: el código está en `src/brain.ts` (herramientas y reglas) y `src/qwen.ts` (cliente compatible con OpenAI y planificador).
+
+- **Modo thinking:** el razonamiento (`reasoning_content`) se devuelve a Qwen en cada vuelta, como exige la API, y se muestra en la demo. `thinking_budget` acota cuánto piensa.
+- **Reacciona al contrato:** si un pago se rechaza, el motivo vuelve a Qwen con los montos en tUSD y cambia de plan (por ejemplo, `NeedsApproval` → pide la aprobación del usuario).
+- **Límites:** solo usa permisos del usuario que sean para este agente; 6 tareas por minuto por IP; plazo de 50 s por tarea (la función de Vercel tiene 60 s); la clave nunca aparece en errores ni registros.
+- **Regla aprendida en una prueba real:** con 150 tUSD y un máximo de 100, Qwen dividió el pago en 50 + 100. Ahora tiene prohibido dividir pagos para esquivar un límite (la defensa de fondo sigue siendo el contrato).
+
+Variables: `QWEN_API_KEY` (secreta), `QWEN_MODEL` (por defecto `qwen3.8-max`), `QWEN_BASE_URL` (por defecto `https://maas.qwencloudapi.com/compatible-mode/v1`). Sin clave, la ruta responde `AgentBrainDisabled`.
 
 ## Cómo protege sus fondos
 
