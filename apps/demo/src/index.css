@@ -1,0 +1,192 @@
+/* Aval · demo. Tailwind con los tokens del diseño de Stitch. Móvil primero, modo claro y oscuro con los mismos nombres. */
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace;
+
+  --color-bg: var(--c-bg);
+  --color-surface: var(--c-surface);
+  --color-surface-low: var(--c-surface-low);
+  --color-surface-mid: var(--c-surface-mid);
+  --color-surface-high: var(--c-surface-high);
+  --color-ink: var(--c-ink);
+  --color-ink-2: var(--c-ink-2);
+  --color-muted: var(--c-muted);
+  --color-line: var(--c-line);
+  --color-primary: var(--c-primary);
+  --color-primary-strong: var(--c-primary-strong);
+  --color-primary-soft: var(--c-primary-soft);
+  --color-on-primary-soft: var(--c-on-primary-soft);
+  --color-ok: var(--c-ok);
+  --color-ok-soft: var(--c-ok-soft);
+  --color-on-ok-soft: var(--c-on-ok-soft);
+  --color-ok-dot: var(--c-ok-dot);
+  --color-warn: var(--c-warn);
+  --color-warn-soft: var(--c-warn-soft);
+  --color-on-warn-soft: var(--c-on-warn-soft);
+  --color-bad: var(--c-bad);
+  --color-bad-soft: var(--c-bad-soft);
+  --color-on-bad-soft: var(--c-on-bad-soft);
+  --color-term: var(--c-term);
+  --color-term-2: var(--c-term-2);
+  --color-on-term: var(--c-on-term);
+  --color-term-muted: var(--c-term-muted);
+  --color-term-accent: var(--c-term-accent);
+}
+
+:root {
+  color-scheme: light dark;
+  --c-bg: #faf8ff;
+  --c-surface: #ffffff;
+  --c-surface-low: #f2f3ff;
+  --c-surface-mid: #eaedff;
+  --c-surface-high: #dae2fd;
+  --c-ink: #131b2e;
+  --c-ink-2: #464554;
+  --c-muted: #6b6a7c;
+  --c-line: #dcdcec;
+  --c-primary: #311fb9;
+  --c-primary-strong: #4a3fd0;
+  --c-primary-soft: #e3dfff;
+  --c-on-primary-soft: #1f1489;
+  --c-ok: #006c49;
+  --c-ok-soft: #d7f8e8;
+  --c-on-ok-soft: #00573b;
+  --c-ok-dot: #2bc488;
+  --c-warn: #8a5800;
+  --c-warn-soft: #ffeed9;
+  --c-on-warn-soft: #653e00;
+  --c-bad: #ba1a1a;
+  --c-bad-soft: #ffe4e1;
+  --c-on-bad-soft: #93000a;
+  --c-term: #232a3f;
+  --c-term-2: #2e3650;
+  --c-on-term: #eef0ff;
+  --c-term-muted: #9ea6c4;
+  --c-term-accent: #6ffbbe;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --c-bg: #0e1120;
+    --c-surface: #161a2c;
+    --c-surface-low: #1b2034;
+    --c-surface-mid: #222840;
+    --c-surface-high: #2c3450;
+    --c-ink: #e7e9f6;
+    --c-ink-2: #b8bbcf;
+    --c-muted: #9093a8;
+    --c-line: #31374f;
+    --c-primary: #c4c0ff;
+    --c-primary-strong: #5b50e0;
+    --c-primary-soft: #2a2466;
+    --c-on-primary-soft: #e3dfff;
+    --c-ok: #4edea3;
+    --c-ok-soft: #0f3527;
+    --c-on-ok-soft: #8ff7c8;
+    --c-ok-dot: #4edea3;
+    --c-warn: #ffb95f;
+    --c-warn-soft: #3a2a12;
+    --c-on-warn-soft: #ffd9a8;
+    --c-bad: #ffb4ab;
+    --c-bad-soft: #43181a;
+    --c-on-bad-soft: #ffdad6;
+    --c-term: #0a0d1a;
+    --c-term-2: #161b2e;
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-bg text-ink font-sans antialiased;
+    min-height: 100dvh;
+  }
+  :focus-visible {
+    outline: 2px solid var(--c-primary);
+    outline-offset: 2px;
+  }
+  button:not(:disabled),
+  summary,
+  [role='button'] {
+    cursor: pointer;
+  }
+  textarea,
+  input {
+    font: inherit;
+  }
+}
+
+@layer components {
+  .icon {
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    direction: ltr;
+    flex-shrink: 0;
+    overflow: hidden;
+    font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+  .icon-fill {
+    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+
+  .card {
+    @apply bg-surface rounded-2xl p-5 md:p-6 shadow-[0_1px_2px_rgb(19_27_46/4%),0_8px_24px_rgb(19_27_46/4%)] ring-1 ring-line/60;
+  }
+
+  .input {
+    @apply w-full rounded-xl bg-surface-low px-3.5 py-2.5 text-ink ring-1 ring-line placeholder:text-muted;
+    @apply focus:outline-none focus:ring-2 focus:ring-primary;
+  }
+
+  .eyebrow {
+    @apply inline-flex items-center gap-1.5 rounded-full bg-primary-soft px-3 py-1 text-[12px] font-semibold tracking-wider text-on-primary-soft uppercase;
+  }
+
+  .spinner {
+    @apply inline-block size-[18px] rounded-full border-2 border-current border-r-transparent;
+    animation: spin 0.7s linear infinite;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.rise {
+  animation: rise 0.25s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.visually-hidden {
+  @apply sr-only;
+}

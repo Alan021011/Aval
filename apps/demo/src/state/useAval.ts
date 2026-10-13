@@ -536,7 +536,7 @@ export function useAval() {
         `request-${amount}`,
         'El agente pide aprobación para un pago grande',
         () => relayer.agent.request({ permitId: permit.permitId, amount, ref: 'traduccion-grande' }),
-        'El agente pidió tu aprobación. Aparece abajo, en "Aprobaciones".',
+        'El agente pidió tu aprobación. Te espera en «Aprobaciones».',
       );
     },
     [agentAction, currentPermit, relayer],

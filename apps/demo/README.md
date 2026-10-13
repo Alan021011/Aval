@@ -8,6 +8,8 @@ No es el producto: es la prueba de que el protocolo funciona y de que otro desar
 
 ## Qué muestra
 
+La interfaz sigue el diseño de Stitch (*Aval Agent Spending Control*), hecha con Tailwind CSS v4, con modo claro y oscuro. Después de entrar, cada sección es una vista propia (`#/panel`, `#/permiso`, `#/agente`, `#/aprobaciones`, `#/recibos`, `#/memoria`, `#/inspector`). En escritorio se navega con un menú lateral y en el móvil con una barra inferior.
+
 | Pantalla | Qué hace | Qué demuestra |
 |---|---|---|
 | **Inicio** | Un botón: «Empezar con mi huella» | Cuenta nueva con **una sola ceremonia** de passkey (Mera): sin frase secreta, sin extensión, sin correo ni contraseña |
