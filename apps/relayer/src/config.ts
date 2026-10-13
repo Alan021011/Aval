@@ -9,7 +9,7 @@ const env = z.object({
   /** Uno o varios RPC separados por comas, en orden de preferencia: si uno falla se usa el siguiente. */
   RPC_URL: z
     .string()
-    .default('https://testnet-rpc.monad.xyz,https://rpc-testnet.monadinfra.com,https://monad-testnet.drpc.org')
+    .default('https://rpc.ankr.com/monad_testnet,https://testnet-rpc.monad.xyz,https://10143.rpc.thirdweb.com')
     .refine(
       (v) => v.split(',').every((u) => /^https?:\/\/\S+$/.test(u.trim())),
       'RPC_URL debe ser una o varias URL separadas por comas',

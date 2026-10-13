@@ -68,6 +68,9 @@ export function createAgentBrain(options: { agent: DemoAgent; reader: Aval; chat
         throw new RelayerError(400, 'PermitNotForAgent', 'Ese permiso no es para el agente de demostración.');
       }
 
+      // El contrato mide el umbral por pago; aquí se mide lo pagado en toda la tarea, para que dividir un pago en varios no lo esquive.
+      let paidInTask = 0n;
+
       const tools: Record<string, Tool> = {
         consultar_permiso: {
           spec: {
@@ -144,7 +147,19 @@ export function createAgentBrain(options: { agent: DemoAgent; reader: Aval; chat
           },
           async run(args) {
             try {
-              const { hash } = await agent.spend({ permitId: input.permitId, amount: toUnits(args.monto_tusd), ref: 'qwen-pago' }, ctx);
+              const amount = toUnits(args.monto_tusd);
+              const threshold = permit.terms.approvalThreshold;
+              if (paidInTask + amount > threshold) {
+                return {
+                  ok: false,
+                  rechazoDelContrato: 'NeedsApproval',
+                  explicacion: `Sumado a lo que ya pagaste en esta tarea (${tusd(paidInTask)} tUSD) supera el umbral de aprobación del usuario: pide su aprobación con pedir_aprobacion.`,
+                  monto: tusd(paidInTask + amount),
+                  limite: tusd(threshold),
+                };
+              }
+              const { hash } = await agent.spend({ permitId: input.permitId, amount, ref: 'qwen-pago' }, ctx);
+              paidInTask += amount;
               return { ok: true, pagado: Number(args.monto_tusd), hash };
             } catch (error) {
               return rejection(error);

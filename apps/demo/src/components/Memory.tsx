@@ -56,7 +56,7 @@ export function MemoryView({ app, memory }: { app: App; memory: Memory }) {
           {!memory.open ? (
             <Card icon="key" title="Abre tu memoria" subtitle="Tu passkey tiene una clave aparte para la memoria (otro salt, no la de tu cuenta).">
               <p className="mb-5 text-sm leading-relaxed text-ink-2">
-                De ella salen una clave solo tuya y una por cada agente con el que compartes. Nadie más, ni el relayer, puede leerla.
+                De ella salen una clave solo tuya y una por cada agente con el que compartes. La parte privada no la puede leer nadie más, ni el relayer. La parte compartida sí la ve tu agente (y el modelo que la usa) cuando la lee.
               </p>
               <Button variant="primary" size="lg" icon="lock_open" loading={app.busy === 'memory-open'} disabled={locked || busy} onClick={() => memory.unlock()}>
                 Abrir mi memoria
@@ -158,7 +158,7 @@ export function MemoryView({ app, memory }: { app: App; memory: Memory }) {
               <li className="flex gap-2.5">
                 <Icon name="visibility_off" size={20} className="text-primary" />
                 <span>
-                  <strong className="text-ink">Cero conocimiento.</strong> En la cadena solo hay bytes cifrados (AES-GCM). Nadie más puede leerlos.
+                  <strong className="text-ink">Cifrado de extremo a extremo.</strong> En la cadena solo hay bytes cifrados (AES-GCM). Lo privado solo lo abres tú; lo compartido lo lee tu agente.
                 </span>
               </li>
               <li className="flex gap-2.5">
@@ -170,7 +170,7 @@ export function MemoryView({ app, memory }: { app: App; memory: Memory }) {
               <li className="flex gap-2.5">
                 <Icon name="sync_lock" size={20} className="text-primary" />
                 <span>
-                  <strong className="text-ink">Revocación instantánea.</strong> Al revocar sube la versión, y la clave vieja del agente deja de abrir la memoria.
+                  <strong className="text-ink">Revocación hacia adelante.</strong> Al revocar sube la versión: lo que se guarde después ya no lo abre la clave vieja. Lo que el agente ya leyó, o el texto antiguo que sigue en el historial de la cadena, sigue abriéndose con esa clave.
                 </span>
               </li>
             </ul>
