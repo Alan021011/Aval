@@ -7,7 +7,7 @@ import { ZodError } from 'zod';
 import { type Limits, RelayerError } from './limits.js';
 import type { DemoAgent } from './agent.js';
 import { type Relayer, briefly } from './relayer.js';
-import { agentReviewSchema, agentSpendSchema, faucetSchema, isRelayKind, schemas } from './schemas.js';
+import { agentRecallSchema, agentReviewSchema, agentSpendSchema, faucetSchema, isRelayKind, schemas } from './schemas.js';
 
 export type AppOptions = {
   relayer: Relayer;
@@ -141,6 +141,9 @@ export function createApp({ relayer, agent, limits, allowedOrigins, trustProxy =
   );
   app.post('/agent/review', tooLarge, (c) =>
     agent ? agentAction(c, agentReviewSchema, (input, ip) => agent.review(input, { ip })) : disabled(c),
+  );
+  app.post('/agent/recall', tooLarge, (c) =>
+    agent ? agentAction(c, agentRecallSchema, (input, ip) => agent.recall(input, { ip })) : disabled(c),
   );
 
   app.notFound((c) => fail(c, new RelayerError(404, 'NotFound', 'Ruta desconocida.')));

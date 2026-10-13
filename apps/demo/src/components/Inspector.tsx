@@ -4,6 +4,8 @@ import { formatEther } from 'viem';
 import { RELAYER_URL, SESSION_MINUTES, addressUrl, publicClient, txUrl } from '../lib/config';
 import { seconds, shortHash } from '../lib/format';
 import type { App } from '../state/useAval';
+import type { Memory } from '../state/useMemory';
+import { MemoryFacts } from './Memory';
 import { Badge, Button, Card, Icon } from './ui';
 
 function Link({ href, children }: { href: string; children: string }) {
@@ -20,12 +22,13 @@ const CONTRACTS = [
   ['AgentPermit', monadTestnet.agentPermit],
   ['ReputationReader', monadTestnet.reputationReader],
   ['TestUSD (tUSD)', monadTestnet.testUsd],
+  ['MemoryVault', monadTestnet.memoryVault],
   ['ERC-8004 Identity', erc8004MonadTestnet.identityRegistry],
   ['ERC-8004 Reputation', erc8004MonadTestnet.reputationRegistry],
 ] as const;
 
 /** Panel para los jueces del track: todo lo que la vista de usuario oculta a propósito. */
-export function Inspector({ app }: { app: App }) {
+export function Inspector({ app, memory }: { app: App; memory?: Memory }) {
   const snapshot = app.snapshot;
   const [userMon, setUserMon] = useState<bigint | null>(null);
 
@@ -162,6 +165,8 @@ export function Inspector({ app }: { app: App }) {
             <p className="muted small">Entra para ver los datos del agente.</p>
           )}
         </section>
+
+        {memory ? <MemoryFacts memory={memory} /> : null}
       </div>
 
       <h3>Registro técnico</h3>

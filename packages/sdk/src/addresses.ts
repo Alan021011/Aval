@@ -11,6 +11,8 @@ export type AvalAddresses = {
   /** Registros oficiales de ERC-8004 (agentes y reputación). Opcionales en otras redes. */
   identityRegistry?: Address;
   reputationRegistry?: Address;
+  /** Almacenamiento remoto no confiable de la memoria cifrada. Opcional en otras redes. */
+  memoryVault?: Address;
 };
 
 /** Registros ERC-8004 oficiales de Monad testnet. */
@@ -19,7 +21,7 @@ export const erc8004MonadTestnet = {
   reputationRegistry: '0x8004B663056A597Dffe9eCcC1965A193B7388713',
 } as const satisfies Record<string, Address>;
 
-/** Despliegue de Aval en Monad testnet (chain ID 10143). Verificado en Sourcify. */
+/** Despliegue de Aval en Monad testnet (chain ID 10143). Verificado en el Sourcify de Monad (MonadVision). */
 export const monadTestnet: AvalAddresses = {
   chainId: 10143,
   passkeyRegistry: '0x0C46E673C0f852920e9F15902B0859358Eb53789',
@@ -28,6 +30,7 @@ export const monadTestnet: AvalAddresses = {
   testUsd: '0xeD4Bb1e1926441461BcADA4BBF647Aba8574B3C5',
   identityRegistry: erc8004MonadTestnet.identityRegistry,
   reputationRegistry: erc8004MonadTestnet.reputationRegistry,
+  memoryVault: '0x58Ff042D37cd4Aa9477cd55A6c59C1e4b9418881',
 };
 
 /** Precompile P256 de Monad (EIP-7951). */

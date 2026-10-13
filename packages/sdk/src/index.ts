@@ -2,6 +2,7 @@ import type { PublicClient, WalletClient } from 'viem';
 import { type AvalAddresses, monadTestnet } from './addresses.js';
 import type { Ctx } from './context.js';
 import { createAgents } from './erc8004.js';
+import { createMemory } from './memory.js';
 import { createPasskeys } from './passkeys.js';
 import { createPermits } from './permits.js';
 import { createReputation } from './reputation.js';
@@ -42,6 +43,7 @@ export function createAval(options: CreateAvalOptions) {
   return {
     addresses,
     agents: createAgents(ctx),
+    memory: createMemory(ctx),
     passkeys: createPasskeys(ctx),
     permits: createPermits(ctx),
     reputation: createReputation(ctx),
@@ -75,6 +77,16 @@ export type { AgentCard } from './erc8004.js';
 export { createRelayerClient } from './relayer-client.js';
 export type { DemoAgentInfo, RelayerClient, RelayerFetch, RelayerHealth } from './relayer-client.js';
 export { deserialize, serialize } from './wire.js';
+export {
+  MEMORY_PRF_SALT,
+  agentMemorySlot,
+  deriveMemoryKeys,
+  openMemory,
+  privateMemorySlot,
+  sealMemory,
+  sealedVersion,
+} from './memory.js';
+export type { MemoryKeys, SignedStore } from './memory.js';
 export { createIndexerClient } from './indexer.js';
 export type { AgentScoreRecord, IndexerClient, IndexerFetch, PaymentRecord, ScoreCheck } from './indexer.js';
 export { computeVerifiedScore } from './score.js';

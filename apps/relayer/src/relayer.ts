@@ -3,6 +3,7 @@ import {
   type SignedGrant,
   type SignedRegister,
   type SignedRevoke,
+  type SignedStore,
   type SignedTokenPermit,
   type WebAuthnAuth,
   createAval,
@@ -30,11 +31,12 @@ type Payloads = {
   revoke: SignedRevoke;
   'token-permit': SignedTokenPermit;
   approve: { requestId: bigint; auth: WebAuthnAuth };
+  memory: SignedStore;
 };
 
 /**
  * Relayer de Aval. Recibe lo que el usuario firmó y lo envía pagando el gas. Nunca recibe claves privadas, y solo
- * puede hacer las cinco operaciones de abajo con los contratos de Aval: no envía datos arbitrarios.
+ * puede hacer las seis operaciones de abajo con los contratos de Aval: no envía datos arbitrarios.
  */
 export function createRelayer(options: RelayerOptions) {
   const { publicClient, walletClient, addresses, limits } = options;
@@ -102,6 +104,12 @@ export function createRelayer(options: RelayerOptions) {
           const p = payload as Payloads['approve'];
           await guard(ctx, `approve:${p.requestId}`);
           return execute(async () => ({ hash: (await aval.permits.submitApproval(p.requestId, p.auth)).hash }));
+        }
+        case 'memory': {
+          const p = payload as Payloads['memory'];
+          await guard(ctx, p.owner);
+          requireFutureDeadline(p.deadline);
+          return execute(async () => ({ hash: (await aval.memory.relayStore(p)).hash }));
         }
         default:
           throw new RelayerError(404, 'UnknownOperation', 'Operación desconocida.');

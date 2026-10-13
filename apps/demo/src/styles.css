@@ -704,6 +704,47 @@ a {
   outline-offset: 0;
 }
 
+.field textarea {
+  font: inherit;
+  min-height: 72px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text);
+  width: 100%;
+  resize: vertical;
+}
+
+/* memoria cifrada */
+
+.memory {
+  display: grid;
+  gap: 14px;
+}
+
+.memory-part {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+.memory-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cipher {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  word-break: break-all;
+  color: var(--muted);
+}
+
 .field-hint {
   color: var(--muted);
   font-size: 0.8125rem;

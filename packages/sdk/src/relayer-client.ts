@@ -1,5 +1,6 @@
-import type { Address, Hash } from 'viem';
+import type { Address, Hash, Hex } from 'viem';
 import { AvalError } from './errors.js';
+import type { SignedStore } from './memory.js';
 import type { SignedRegister } from './passkeys.js';
 import type { SignedGrant, SignedRevoke } from './permits.js';
 import type { SignedTokenPermit } from './tokens.js';
@@ -75,6 +76,8 @@ export function createRelayerClient(options: { url: string; fetch?: RelayerFetch
     tokenPermit: (signed: SignedTokenPermit) => call<{ hash: Hash }>('POST', '/relay/token-permit', signed),
     /** Envía la aprobación con passkey de un gasto pendiente. */
     approve: (requestId: bigint, auth: WebAuthnAuth) => call<{ hash: Hash }>('POST', '/relay/approve', { requestId, auth }),
+    /** Guarda en MemoryVault un casillero de memoria (ya cifrado) con la firma del usuario. */
+    storeMemory: (signed: SignedStore) => call<{ hash: Hash }>('POST', '/relay/memory', signed),
     /**
      * Agente de demostración del relayer: hace de agente de IA del usuario. El usuario le da un permiso (con su
      * dirección `info().address` como agente) y estas acciones muestran qué hace el contrato en cada caso.
@@ -89,6 +92,12 @@ export function createRelayerClient(options: { url: string; fetch?: RelayerFetch
         call<{ hash: Hash; requestId: bigint }>('POST', '/agent/request', input),
       /** Reseña al servicio (de 0 a 100). Solo cuenta en la reputación verificada si el agente ya le pagó. */
       review: (input: { value: number; tag?: string }) => call<{ hash: Hash }>('POST', '/agent/review', input),
+      /**
+       * El agente lee la parte de la memoria que `owner` compartió con él, con la clave que el usuario le dio. Si el
+       * usuario revocó el acceso (subió la versión), esa clave ya no abre la memoria y el error lo dice.
+       */
+      recall: (input: { owner: Address; key: Hex }) =>
+        call<{ text: string; version: number }>('POST', '/agent/recall', input),
     },
     /** Pide dólares de prueba (tUSD) para una dirección. Tiene tiempo de espera por dirección. */
     faucet: (to: Address) => call<{ hash: Hash; amount: bigint }>('POST', '/faucet', { to }),

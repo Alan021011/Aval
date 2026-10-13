@@ -4,7 +4,7 @@ Contratos de Aval en Solidity, con [Foundry](https://getfoundry.sh). Red objetiv
 
 ## Despliegue en Monad testnet
 
-Código verificado en Sourcify (coincidencia exacta). Las direcciones también están en [`deployments/monad-testnet.json`](deployments/monad-testnet.json).
+Código verificado (coincidencia exacta) en el Sourcify de Monad, visible en MonadVision. Las direcciones también están en [`deployments/monad-testnet.json`](deployments/monad-testnet.json).
 
 | Contrato | Dirección |
 |---|---|
@@ -12,6 +12,7 @@ Código verificado en Sourcify (coincidencia exacta). Las direcciones también e
 | `AgentPermit` | [`0x00F0C1b1FB751c380dF0132001eab6ca110Fc2DA`](https://testnet.monadvision.com/address/0x00F0C1b1FB751c380dF0132001eab6ca110Fc2DA) |
 | `TestUSD` | [`0xeD4Bb1e1926441461BcADA4BBF647Aba8574B3C5`](https://testnet.monadvision.com/address/0xeD4Bb1e1926441461BcADA4BBF647Aba8574B3C5) |
 | `ReputationReader` | [`0x831EeA5808B40C2f1fE49d817B056D3d54E685D6`](https://testnet.monadvision.com/address/0x831EeA5808B40C2f1fE49d817B056D3d54E685D6) |
+| `MemoryVault` | [`0x58Ff042D37cd4Aa9477cd55A6c59C1e4b9418881`](https://testnet.monadvision.com/address/0x58Ff042D37cd4Aa9477cd55A6c59C1e4b9418881) |
 
 `AgentPermit` y `ReputationReader` se redesplegaron al agregar los listados (las direcciones anteriores quedan en `deployments/monad-testnet.json`, bajo `previous`). `script/DeployPermits.s.sol` redespliega solo esos dos y reutiliza `PasskeyRegistry` y `TestUSD`.
 
@@ -76,6 +77,16 @@ Detalles:
 Registros ERC-8004 en Monad testnet: Identity `0x8004A818BFB912233c491871b3d84c89A494BD9e`, Reputation `0x8004B663056A597Dffe9eCcC1965A193B7388713`.
 
 `approvalChallenge(requestId)` es un hash EIP-712 atado a la red, al contrato y a los datos exactos del gasto: una aprobación no sirve para otro pedido. Los límites se revisan otra vez al aprobar, por si el permiso se revocó, venció o se gastó mientras tanto.
+
+### `MemoryVault`
+
+Almacenamiento remoto **no confiable** para la memoria cifrada del usuario y sus agentes. Solo guarda bytes que ya llegan cifrados desde el dispositivo (AES-GCM con claves derivadas de la passkey): el contrato, el relayer y cualquiera que lea la cadena ven ruido. La misma passkey en otro dispositivo encuentra los datos y los descifra.
+
+- `store(slot, data)`: guarda (o borra, con `data` vacío) un casillero propio. Máximo 4 KB.
+- `storeFor(owner, slot, data, deadline, signature)`: lo mismo con una firma EIP-712 del dueño sobre el hash exacto de los datos, para que un relayer pague el gas (nonce contra repeticiones y fecha límite).
+- `get(owner, slot)`: los bytes cifrados de un casillero.
+
+Casilleros que usa Aval: uno privado (`keccak256("aval/memory/private")`) y uno por agente con el que el usuario comparte (`keccak256("aval/memory/agent/<dirección>")`). Se despliega con `script/DeployMemory.s.sol`.
 
 ### `TestUSD`
 

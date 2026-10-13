@@ -60,6 +60,15 @@ export const approveSchema = z.strictObject({
   }),
 });
 
+/** Escritura de un casillero de MemoryVault: los datos ya vienen cifrados desde el dispositivo (máx. 4 KB). */
+export const memorySchema = z.strictObject({
+  owner: address,
+  slot: hex32,
+  data: hex(4096),
+  deadline: uint(64),
+  signature,
+});
+
 export const faucetSchema = z.strictObject({ to: address });
 
 export const schemas = {
@@ -68,6 +77,7 @@ export const schemas = {
   revoke: revokeSchema,
   'token-permit': tokenPermitSchema,
   approve: approveSchema,
+  memory: memorySchema,
 } as const;
 
 export type RelayKind = keyof typeof schemas;
@@ -84,6 +94,9 @@ export const agentSpendSchema = z.strictObject({
   amount,
   ref: reference.optional(),
 });
+
+/** El usuario le da al agente la clave de su parte de la memoria (32 bytes) para que la lea. */
+export const agentRecallSchema = z.strictObject({ owner: address, key: hex32 });
 
 export const agentReviewSchema = z.strictObject({
   /** Escala de 0 a 100: el promedio de ERC-8004 se trunca a enteros. */

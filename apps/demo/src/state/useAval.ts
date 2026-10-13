@@ -351,6 +351,8 @@ export function useAval() {
   /** Bloquea la sesión: la clave sale de la memoria y hay que volver a usar la huella. */
   const lock = useCallback(
     (reason?: string) => {
+      // La raíz de la memoria cifrada sale de la memoria junto con la clave de la cuenta.
+      backend.current?.forgetMemory();
       session.current?.end();
       session.current = null;
       aval.current = null;
@@ -367,6 +369,7 @@ export function useAval() {
    * de inicio. Al volver a entrar con la huella, todo reaparece porque solo vive en la cadena.
    */
   const forget = useCallback(() => {
+    backend.current?.forgetMemory();
     session.current?.end();
     session.current = null;
     aval.current = null;
@@ -584,6 +587,18 @@ export function useAval() {
     agentRequest,
     agentReview,
     dismissNotice: () => setNotice(null),
+    /** Lo que necesita la memoria cifrada (`useMemory`) para firmar, enviar y registrar sus acciones. */
+    bridge: {
+      aval: ensureAval,
+      backend: () => backend.current,
+      credentialId: () => session.current?.credentialId ?? null,
+      relayer,
+      reader,
+      act,
+      timed,
+      notify,
+      addLog,
+    },
   };
 }
 

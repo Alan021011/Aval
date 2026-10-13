@@ -1,5 +1,5 @@
 import type { WebAuthnClient } from '@category-labs/mera';
-import { type AssertionProvider, type PasskeyPublicKey, browserAssertion, toBase64Url } from '@aval/sdk';
+import { type AssertionProvider, MEMORY_PRF_SALT, type PasskeyPublicKey, browserAssertion, toBase64Url } from '@aval/sdk';
 import { bytesToHex } from 'viem';
 
 /**
@@ -18,6 +18,15 @@ export type Backend = {
   capturedKey(): PasskeyPublicKey | null;
   /** Cuántas veces se le pidió la huella al usuario desde que se creó este objeto. */
   prompts(): number;
+  /**
+   * Raíz de la memoria cifrada: el segundo secreto PRF de la passkey, con el salt propio de la memoria. Se pide en la
+   * misma ceremonia que la cuenta (`eval.second`), así que normalmente no cuesta otra huella. Solo vive en memoria.
+   */
+  memoryRoot(): Uint8Array | null;
+  /** Pide la raíz con una huella aparte, si el autenticador no la devolvió en la ceremonia de la cuenta. */
+  unlockMemory(credentialId?: Uint8Array): Promise<Uint8Array>;
+  /** Borra la raíz de la memoria (al bloquear la sesión). */
+  forgetMemory(): void;
 };
 
 const ES256 = -7;
@@ -28,12 +37,19 @@ const bytes = (source: BufferSource): Uint8Array<ArrayBuffer> =>
     ? new Uint8Array(source)
     : new Uint8Array(source.buffer, source.byteOffset, source.byteLength).slice();
 
-type PrfResults = { prf?: { enabled?: boolean; results?: { first?: BufferSource } } };
+type PrfResults = { prf?: { enabled?: boolean; results?: { first?: BufferSource; second?: BufferSource } } };
 
 /** Passkey real. Hace lo mismo que el cliente del navegador de Mera y además guarda la clave pública P256. */
 export function realBackend(): Backend {
   let key: PasskeyPublicKey | null = null;
   let prompts = 0;
+  let memory: Uint8Array | null = null;
+  // Dos salts en una sola ceremonia: el de la cuenta (lo pide Mera) y el de la memoria. Son namespaces separados.
+  const prfEval = (accountSalt: BufferSource) => ({ prf: { eval: { first: accountSalt, second: MEMORY_PRF_SALT } } });
+  const keepMemory = (results: PrfResults) => {
+    const second = results.prf?.results?.second;
+    if (second) memory = bytes(second);
+  };
 
   const webAuthnClient: WebAuthnClient = {
     async createCredential(req) {
@@ -52,7 +68,7 @@ export function realBackend(): Backend {
             requireResidentKey: true,
             userVerification: req.userVerification,
           },
-          extensions: { prf: { eval: { first: req.prfSalt } } } as AuthenticationExtensionsClientInputs,
+          extensions: prfEval(req.prfSalt) as AuthenticationExtensionsClientInputs,
         },
       })) as PublicKeyCredential | null;
       if (!cred) throw new Error('La passkey no se creó');
@@ -66,7 +82,9 @@ export function realBackend(): Backend {
       const raw = new Uint8Array(await crypto.subtle.exportKey('raw', imported));
       key = { x: bytesToHex(raw.slice(1, 33)), y: bytesToHex(raw.slice(33, 65)) };
 
-      const prf = (cred.getClientExtensionResults() as PrfResults).prf;
+      const results = cred.getClientExtensionResults() as PrfResults;
+      keepMemory(results);
+      const prf = results.prf;
       const first = prf?.results?.first;
       const transports = response.getTransports?.() as WebAuthnClient.CreateCredentialResult['transports'];
       return {
@@ -86,7 +104,7 @@ export function realBackend(): Backend {
           challenge: req.challenge,
           ...(req.timeout !== undefined ? { timeout: req.timeout } : {}),
           userVerification: req.userVerification,
-          extensions: { prf: { eval: { first: req.prfSalt } } } as AuthenticationExtensionsClientInputs,
+          extensions: prfEval(req.prfSalt) as AuthenticationExtensionsClientInputs,
           ...(allowed
             ? {
                 allowCredentials: [
@@ -101,7 +119,9 @@ export function realBackend(): Backend {
         },
       })) as PublicKeyCredential | null;
       if (!cred) throw new Error('La passkey no respondió');
-      const first = (cred.getClientExtensionResults() as PrfResults).prf?.results?.first;
+      const results = cred.getClientExtensionResults() as PrfResults;
+      keepMemory(results);
+      const first = results.prf?.results?.first;
       return { credentialId: new Uint8Array(cred.rawId), ...(first ? { prfOutput: bytes(first) } : {}) };
     },
   };
@@ -111,7 +131,36 @@ export function realBackend(): Backend {
     return browserAssertion({ ...request, rpId: rpId() });
   };
 
-  return { mode: 'real', webAuthnClient, assertionProvider, capturedKey: () => key, prompts: () => prompts };
+  async function unlockMemory(credentialId?: Uint8Array): Promise<Uint8Array> {
+    if (memory) return memory;
+    prompts++;
+    const cred = (await navigator.credentials.get({
+      publicKey: {
+        rpId: rpId(),
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        userVerification: 'required',
+        extensions: { prf: { eval: { first: MEMORY_PRF_SALT } } } as AuthenticationExtensionsClientInputs,
+        ...(credentialId ? { allowCredentials: [{ type: 'public-key' as const, id: credentialId.slice() }] } : {}),
+      },
+    })) as PublicKeyCredential | null;
+    const first = (cred?.getClientExtensionResults() as PrfResults | undefined)?.prf?.results?.first;
+    if (!first) throw new Error('Tu passkey no entregó la clave de la memoria (PRF).');
+    memory = bytes(first);
+    return memory;
+  }
+
+  return {
+    mode: 'real',
+    webAuthnClient,
+    assertionProvider,
+    capturedKey: () => key,
+    prompts: () => prompts,
+    memoryRoot: () => memory,
+    unlockMemory,
+    forgetMemory: () => {
+      memory = null;
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -165,6 +214,7 @@ async function publicKeyOf(privateKey: JsonWebKey): Promise<PasskeyPublicKey> {
 export function simulatedBackend(): Backend {
   let key: PasskeyPublicKey | null = null;
   let prompts = 0;
+  let memory: Uint8Array | null = null;
 
   const prf = async (secret: string, salt: Uint8Array<ArrayBuffer>) => {
     const hmac = await crypto.subtle.importKey('raw', fromHex(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
@@ -183,6 +233,7 @@ export function simulatedBackend(): Backend {
         JSON.stringify({ secret, privateKey, credentialId: toBase64Url(credentialId) } satisfies Stored),
       );
       key = await publicKeyOf(privateKey);
+      memory = await prf(secret, MEMORY_PRF_SALT);
       return { credentialId, prfEnabled: true, prfOutput: await prf(secret, req.prfSalt) };
     },
 
@@ -191,6 +242,7 @@ export function simulatedBackend(): Backend {
       const stored = load();
       if (!stored) throw new Error('No hay una cuenta de prueba en este navegador.');
       const credentialId = Uint8Array.from(atob(stored.credentialId.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+      memory = await prf(stored.secret, MEMORY_PRF_SALT);
       return { credentialId, prfOutput: await prf(stored.secret, req.prfSalt) };
     },
   };
@@ -214,5 +266,23 @@ export function simulatedBackend(): Backend {
     return { authenticatorData, clientDataJSON, signature: rawToDer(raw) };
   };
 
-  return { mode: 'simulated', webAuthnClient, assertionProvider, capturedKey: () => key, prompts: () => prompts };
+  return {
+    mode: 'simulated',
+    webAuthnClient,
+    assertionProvider,
+    capturedKey: () => key,
+    prompts: () => prompts,
+    memoryRoot: () => memory,
+    async unlockMemory() {
+      if (memory) return memory;
+      prompts++;
+      const stored = load();
+      if (!stored) throw new Error('No hay una cuenta de prueba en este navegador.');
+      memory = await prf(stored.secret, MEMORY_PRF_SALT);
+      return memory;
+    },
+    forgetMemory: () => {
+      memory = null;
+    },
+  };
 }

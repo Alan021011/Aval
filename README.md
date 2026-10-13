@@ -10,7 +10,8 @@ Aval es una capa de confianza para agentes de IA en [Monad](https://monad.xyz). 
 > 1. Open **https://aval-demo-alpha.vercel.app** on a device with a passkey (phone, or desktop Chrome with Google Password Manager / iCloud Keychain / 1Password). No passkey? Use the clearly labelled *test mode* on the landing page.
 > 2. **"Empezar con mi huella"** → one passkey prompt creates the account, funds it with test dollars and registers the passkey. **No seed phrase, no extension, 0 MON needed** (gas is sponsored by the relayer).
 > 3. **"Crear permiso"** (defaults are fine) → in *"Tu agente en acción"* press, in order: **Que pague** (passes within limits) · **Que lo intente** (blocked by the contract, explained in plain words) · **Que pida permiso** (goes to *Aprobaciones*) → **"Aprobar con mi huella"** (passkey prompt; the WebAuthn signature is verified on-chain) · **Que reseñe**.
-> 4. Open **Inspector** (top right) to see what the user view hides: contracts, P256 key, tx hashes and timings. Then press **"Simular dispositivo nuevo"** and log in again with the same passkey: balance, permits and activity are **rebuilt from the chain**.
+> 4. Optional: **"Memoria de tu agente"** → open it (no extra prompt if your passkey returned the memory key at login), save a private note and a shared one, press **"Que el agente la lea"**, then **"Revocar acceso"** and read again: the agent's old key no longer works.
+> 5. Open **Inspector** (top right) to see what the user view hides: contracts, P256 key, tx hashes and timings. Then press **"Simular dispositivo nuevo"** and log in again with the same passkey: balance, permits and activity are **rebuilt from the chain**.
 >
 > Measured in production: account ready in **3.7 s with 1 passkey prompt**, first confirmed transaction in **2 s**, **0 MON** spent by the user. Contracts are verified (exact match) on Monad's Sourcify, visible in the [MonadVision](https://testnet.monadvision.com) explorer (addresses below). Bounty notes: see [Bounties](#bounties).
 
@@ -54,7 +55,7 @@ Referencia completa en [`packages/sdk/README.md`](packages/sdk/README.md).
 
 | Carpeta | Qué es |
 |---|---|
-| [`contracts/`](contracts/README.md) | Contratos en Solidity (Foundry): `PasskeyRegistry`, `AgentPermit`, `ReputationReader`, `TestUSD`. Verificación P256/WebAuthn con OpenZeppelin y el precompile de Monad. |
+| [`contracts/`](contracts/README.md) | Contratos en Solidity (Foundry): `PasskeyRegistry`, `AgentPermit`, `ReputationReader`, `MemoryVault`, `TestUSD`. Verificación P256/WebAuthn con OpenZeppelin y el precompile de Monad. |
 | [`packages/sdk/`](packages/sdk/README.md) | **`@aval/sdk`**: SDK en TypeScript (viem). Permisos, aprobaciones con passkey, recibos, reputación verificada, agentes ERC-8004 y cliente del relayer. |
 | [`apps/relayer/`](apps/relayer/README.md) | Relayer que envía las firmas del usuario y paga el gas, con un agente de demostración. Protegido con límites, saldo mínimo y reintento de nonce. |
 | [`apps/demo/`](apps/demo/README.md) | La demo: onboarding, permisos, agente en acción, aprobaciones, actividad, reputación e inspector para jueces. |
@@ -90,6 +91,7 @@ Monad testnet (chain ID 10143). Todo el dinero es de prueba.
 | `AgentPermit` | `0x00F0C1b1FB751c380dF0132001eab6ca110Fc2DA` |
 | `ReputationReader` | `0x831EeA5808B40C2f1fE49d817B056D3d54E685D6` |
 | `TestUSD` | `0xeD4Bb1e1926441461BcADA4BBF647Aba8574B3C5` |
+| `MemoryVault` | `0x58Ff042D37cd4Aa9477cd55A6c59C1e4b9418881` |
 | ERC-8004 Identity | `0x8004A818BFB912233c491871b3d84c89A494BD9e` |
 | ERC-8004 Reputation | `0x8004B663056A597Dffe9eCcC1965A193B7388713` |
 
@@ -98,6 +100,7 @@ Monad testnet (chain ID 10143). Todo el dinero es de prueba.
 | Bounty | Qué demuestra Aval | Dónde verlo |
 |---|---|---|
 | **Mera · Best UX** | Cuenta nueva con **una sola ceremonia** de passkey (PRF): sin frase secreta, sin extensión, sin correo ni contraseña y **sin MON**. Medido en producción: lista en 3,7 s con 1 verificación; primera transacción en 2 s. La misma passkey firma la aprobación que se verifica en la cadena. | Demo en vivo; el cartel verde del tablero y las métricas del inspector. Código: `apps/demo/src/lib/passkey.ts` |
+| **Mera · One Passkey, Many Keys** | La passkey hace **trabajo que no es de cuenta**: un segundo secreto PRF con su propio salt (`aval/memory/v1`), pedido en la **misma ceremonia** que la cuenta (`eval.second`), es la raíz de una **memoria del agente cifrada**. Con HKDF salen una clave privada y una **clave por agente y versión**: compartir es darle al agente la clave de su parte; **revocar** es volver a cifrar con la versión siguiente (la clave vieja deja de abrirla). AES-GCM en el dispositivo; lo cifrado vive en `MemoryVault` (almacenamiento remoto no confiable, en la cadena), así que otro dispositivo con la misma passkey lo descifra. Nada sensible en disco ni en el servidor. | Demo: tarjeta «Memoria de tu agente» y sección del inspector. Código: `packages/sdk/src/memory.ts`, `contracts/src/MemoryVault.sol`, `apps/demo/src/state/useMemory.ts` |
 | **Envio · Best Use** | Indexador HyperIndex con entidades derivadas: relaciones de pago cliente-servicio, origen de fondos y el **`AgentScore`** (reputación solo de quienes pagaron, sin autopagos, una por persona, mínimo de personas distintas y concentración del volumen). El SDK puede **recalcular el puntaje** con los mismos datos (`verifyAgentScore`): no hay que creerle al indexador. | [`indexer/`](indexer/README.md). Probado con **datos reales de Monad testnet** vía HyperSync (`indexer/test/live.test.ts`: 335 eventos, 21 pagos). Ver la nota de despliegue abajo. |
 
 **Nota sobre el despliegue en Envio Cloud:** el indexador llegó a desplegarse y a responder por GraphQL, pero se detuvo al llegar a las reseñas. Al intentar desplegar la versión corregida, Envio Cloud dejó de registrar los pushes de GitHub: solo recibió el primero, y lo mismo pasó con un indexador nuevo, una rama nueva, un repo nuevo y la app de GitHub reinstalada. Lo reportamos a Envio. El código y las pruebas con datos reales están en el repo, y se despliega con un push en cuanto la plataforma lo acepte. Detalles en [`indexer/README.md`](indexer/README.md).
@@ -109,4 +112,5 @@ Dicho con honestidad, porque importan:
 - **Es un prototipo de testnet.** Los contratos no están auditados.
 - **La reputación basada en pagos no es infalsificable:** un agente podría pagarse desde cuentas propias. Se encarece con un pago mínimo, se puede exigir un verificador de humanos y el indexador descarta a los clientes que fondeó el propio servicio, pero no se elimina (por ejemplo, con una cadena de cuentas intermedias).
 - **ERC-8004 permite varias reseñas del mismo cliente** y promedia todas. El contrato `ReputationReader` (el que usa la demo) no las deduplica; el **indexador sí** (una por persona, la más reciente).
+- **Memoria cifrada:** al compartir, la clave de esa parte viaja al agente (es el propósito de compartir); el agente de demostración la usa en la consulta y no la guarda. Revocar protege lo que se escriba después, no lo que el agente ya leyó. Algunos autenticadores no devuelven el segundo secreto PRF en la ceremonia de la cuenta: en ese caso abrir la memoria pide una huella aparte. Cada casillero admite hasta 4 KB.
 - **El relayer** no tiene autenticación de usuario (confía en las firmas y en los límites) y sus límites por IP son aproximados cuando corre en varias instancias. El faucet da 500 tUSD una vez por hora por dirección (hasta 10 por red).

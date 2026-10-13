@@ -1,6 +1,15 @@
 import type { ChildProcess } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { AvalError, createAval, createRelayerClient, monadTestnet, serialize } from '@aval/sdk';
+import {
+  AvalError,
+  agentMemorySlot,
+  createAval,
+  createRelayerClient,
+  deriveMemoryKeys,
+  monadTestnet,
+  sealMemory,
+  serialize,
+} from '@aval/sdk';
 import {
   type Address,
   createPublicClient,
@@ -10,6 +19,7 @@ import {
   http,
   BaseError,
   NonceTooLowError,
+  bytesToHex,
   parseEther,
 } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
@@ -468,6 +478,46 @@ describe('agente de demostración', () => {
     );
     return { user, aval, permitId };
   }
+
+  it('memoria cifrada: el agente lee solo lo que el usuario compartió y deja de poder hacerlo al revocar', async (ctx) => {
+    needAnvil(ctx);
+    const { client } = await setupAgent();
+    const user = newUser();
+    const owner = user.account.address;
+    const aval = createAval({ publicClient, walletClient: user });
+    // La raíz sale del PRF de la passkey; aquí se usa una fija.
+    const keys = deriveMemoryKeys(Uint8Array.from({ length: 32 }, (_, i) => i + 1));
+    const slot = agentMemorySlot(agentAddress);
+
+    // 1. El usuario comparte una nota con el agente: cifrada con la clave del agente (versión 1), guardada sin MON.
+    const v1 = await keys.agentKey(agentAddress, 1);
+    await client.storeMemory(await aval.memory.signStore(slot, await sealMemory(v1, 1, 'Prefiere hoteles cerca del centro')));
+    const onchain = await aval.memory.read(owner, slot);
+    expect(onchain).not.toContain(bytesToHex(new TextEncoder().encode('hoteles')).slice(2));
+
+    // 2. Con la clave que le dio el usuario, el agente lee esa parte.
+    expect(await client.agent.recall({ owner, key: bytesToHex(v1) })).toEqual({ text: 'Prefiere hoteles cerca del centro', version: 1 });
+
+    // 3. El usuario revoca: vuelve a cifrar con la versión 2. La clave vieja del agente ya no abre la memoria.
+    const v2 = await keys.agentKey(agentAddress, 2);
+    await client.storeMemory(await aval.memory.signStore(slot, await sealMemory(v2, 2, 'Prefiere hoteles cerca del centro')));
+    expect((await errorOf(client.agent.recall({ owner, key: bytesToHex(v1) })))?.code).toBe('MemoryAccessRevoked');
+    expect((await client.agent.recall({ owner, key: bytesToHex(v2) })).version).toBe(2);
+
+    // 4. De otro usuario no hay nada que leer, y el usuario nunca gastó MON.
+    expect((await errorOf(client.agent.recall({ owner: newUser().account.address, key: bytesToHex(v2) })))?.code).toBe('NoSharedMemory');
+    expect(await publicClient.getBalance({ address: owner })).toBe(0n);
+  });
+
+  it('memoria cifrada: el relayer rechaza datos alterados o demasiado grandes', async (ctx) => {
+    needAnvil(ctx);
+    const { client } = await setupAgent();
+    const aval = createAval({ publicClient, walletClient: newUser() });
+    const signed = await aval.memory.signStore(agentMemorySlot(agentAddress), '0x0102');
+    expect((await errorOf(client.storeMemory({ ...signed, data: '0x0103' })))?.code).toBe('InvalidSignature');
+    const tooBig = `0x${'00'.repeat(4097)}` as `0x${string}`;
+    expect((await errorOf(client.storeMemory({ ...signed, data: tooBig })))?.code).toBe('InvalidRequest');
+  });
 
   it('informa su dirección, su saldo y el servicio al que le paga', async (ctx) => {
     needAnvil(ctx);

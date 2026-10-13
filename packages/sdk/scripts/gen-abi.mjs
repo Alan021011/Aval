@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const aquí = dirname(fileURLToPath(import.meta.url));
 const salida = join(aquí, '..', '..', '..', 'contracts', 'out');
-const contratos = ['PasskeyRegistry', 'AgentPermit', 'ReputationReader', 'TestUSD'];
+const contratos = ['PasskeyRegistry', 'AgentPermit', 'ReputationReader', 'TestUSD', 'MemoryVault'];
 
 let texto = '// Generado por scripts/gen-abi.mjs desde la compilación de Foundry. No editar a mano.\n\n';
 for (const nombre of contratos) {

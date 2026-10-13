@@ -1,6 +1,6 @@
-import { type AvalAddresses, createAval } from '@aval/sdk';
-import { type Address, type Hash, type PublicClient, type WalletClient, formatEther } from 'viem';
-import { type Limits, SlidingWindow } from './limits.js';
+import { AvalError, type AvalAddresses, agentMemorySlot, createAval, openMemory, sealedVersion } from '@aval/sdk';
+import { type Address, type Hash, type Hex, type PublicClient, type WalletClient, formatEther, hexToBytes } from 'viem';
+import { type Limits, RelayerError, SlidingWindow } from './limits.js';
 import { type Context, createRuntime, limited } from './runtime.js';
 
 export type DemoAgentOptions = {
@@ -40,6 +40,8 @@ export function createDemoAgent(options: DemoAgentOptions) {
 
   // Un usuario puede reseñar a lo sumo una vez por ventana: es una demostración, no un buzón de reseñas.
   const reviewsByIp = new SlidingWindow(60 * 60_000);
+  // Leer la memoria no gasta gas, pero igual se limita para que nadie use al agente como lector gratuito.
+  const recallsByIp = new SlidingWindow(60_000);
 
   return {
     address: account.address,
@@ -54,6 +56,27 @@ export function createDemoAgent(options: DemoAgentOptions) {
         balance: formatEther(balance),
         ready: balance >= limits.agentMinBalanceWei,
       };
+    },
+
+    /**
+     * El agente lee la parte de la memoria que `owner` compartió con él (casillero de MemoryVault con su dirección) y la
+     * descifra con la clave que el usuario le dio. No ve nada más de la memoria del usuario: otras partes usan otras
+     * claves. Si el usuario revocó el acceso (volvió a cifrar con una versión nueva), esta clave ya no la abre.
+     */
+    async recall(input: { owner: Address; key: Hex }, ctx: Context): Promise<{ text: string; version: number }> {
+      limited(recallsByIp.hit(ctx.ip, 30, now()), 'para leer memoria desde esta IP');
+      const sealed = await aval.memory.read(input.owner, agentMemorySlot(account.address));
+      if (sealed === '0x') {
+        throw new RelayerError(404, 'NoSharedMemory', 'Este usuario todavía no compartió memoria con el agente.');
+      }
+      try {
+        return { text: await openMemory(hexToBytes(input.key), sealed), version: sealedVersion(sealed) };
+      } catch (error) {
+        if (error instanceof AvalError && error.code === 'MemoryKeyMismatch') {
+          throw new RelayerError(403, 'MemoryAccessRevoked', 'La clave del agente ya no abre esta memoria: el usuario revocó el acceso.');
+        }
+        throw error;
+      }
     },
 
     /** El agente le paga al servicio dentro de lo que su permiso permite. Si supera el umbral, el contrato lo rechaza. */

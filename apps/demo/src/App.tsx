@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Activity, AgentPanel, Approvals, PermitCard, Reputation, Summary } from './components/Dashboard';
+import { MemoryCard } from './components/Memory';
+import { type Memory, useMemory } from './state/useMemory';
 import { Inspector } from './components/Inspector';
 import { Landing, Preparing } from './components/Onboarding';
 import { Button, Icon } from './components/ui';
@@ -65,7 +67,7 @@ function Locked({ app }: { app: AppState }) {
   );
 }
 
-function Dashboard({ app, inspector }: { app: AppState; inspector: boolean }) {
+function Dashboard({ app, memory, inspector }: { app: AppState; memory: Memory; inspector: boolean }) {
   return (
     <div className="dashboard">
       {app.phase === 'locked' ? <Locked app={app} /> : null}
@@ -93,16 +95,18 @@ function Dashboard({ app, inspector }: { app: AppState; inspector: boolean }) {
           <Approvals app={app} />
           <Activity app={app} />
           <Reputation app={app} />
+          <MemoryCard app={app} memory={memory} />
         </div>
       </div>
 
-      {inspector ? <Inspector app={app} /> : null}
+      {inspector ? <Inspector app={app} memory={memory} /> : null}
     </div>
   );
 }
 
 export default function App() {
   const app = useAval();
+  const memory = useMemory(app);
   const [inspector, setInspector] = useState(false);
 
   const showDashboard = (app.phase === 'in' || app.phase === 'locked') && app.snapshot;
@@ -111,7 +115,7 @@ export default function App() {
     <>
       <Header app={app} inspector={inspector} onInspector={() => setInspector((v) => !v)} />
       <main id="contenido">
-        {showDashboard ? <Dashboard app={app} inspector={inspector} /> : app.phase === 'working' ? <Preparing app={app} /> : <Landing app={app} />}
+        {showDashboard ? <Dashboard app={app} memory={memory} inspector={inspector} /> : app.phase === 'working' ? <Preparing app={app} /> : <Landing app={app} />}
         {!showDashboard && inspector ? <Inspector app={app} /> : null}
       </main>
 
