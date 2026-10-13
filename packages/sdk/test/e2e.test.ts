@@ -53,7 +53,7 @@ const as = (key: keyof typeof keys, provider?: Parameters<typeof createAval>[0][
 const addressOf = (key: keyof typeof keys): Address => privateKeyToAccount(keys[key]).address;
 
 beforeAll(async () => {
-  anvil = await startAnvil(PORT, 'https://testnet-rpc.monad.xyz');
+  anvil = await startAnvil(PORT, process.env.AVAL_FORK_RPC ?? 'https://testnet-rpc.monad.xyz');
   if (anvil) {
     const test = createTestClient({ chain, mode: 'anvil', transport: http(RPC) });
     for (const role of roles) await test.setBalance({ address: privateKeyToAccount(keys[role]).address, value: parseEther('100') });

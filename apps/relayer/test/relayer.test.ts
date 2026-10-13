@@ -1,4 +1,5 @@
 import type { ChildProcess } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   AvalError,
@@ -20,6 +21,9 @@ import {
   BaseError,
   NonceTooLowError,
   bytesToHex,
+  encodeAbiParameters,
+  parseAbi,
+  parseAbiParameters,
   parseEther,
 } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
@@ -80,7 +84,7 @@ function setup(overrides: Partial<Limits> = {}, ip = '10.0.0.1') {
 }
 
 beforeAll(async () => {
-  anvil = await startAnvil(PORT, 'https://testnet-rpc.monad.xyz');
+  anvil = await startAnvil(PORT, process.env.AVAL_FORK_RPC ?? 'https://testnet-rpc.monad.xyz');
   if (anvil) {
     const test = createTestClient({ chain, mode: 'anvil', transport: http(RPC) });
     await test.setBalance({ address: privateKeyToAccount(relayerKey).address, value: parseEther('100') });
@@ -430,7 +434,7 @@ describe('agente de demostración', () => {
   let serviceAgentId = 0n;
 
   /** Un relayer con agente de demostración. El servicio se registra una sola vez en ERC-8004. */
-  async function setupAgent(overrides: Partial<Limits> = {}, chat?: ChatFn) {
+  async function setupAgent(overrides: Partial<Limits> = {}, chat?: ChatFn, riskGuard?: Address) {
     if (serviceAgentId === 0n) {
       const registered = await createAval({ publicClient, walletClient: wallet(serviceKey) }).agents.register();
       serviceAgentId = registered.agentId;
@@ -443,6 +447,7 @@ describe('agente de demostración', () => {
       addresses: monadTestnet,
       limits,
       service: { address: serviceAddress, agentId: serviceAgentId },
+      ...(riskGuard ? { riskGuard } : {}),
     });
     const brain = chat ? createAgentBrain({ agent, reader: createAval({ publicClient, addresses: monadTestnet }), chat }) : undefined;
     const app = createApp({ relayer, agent, brain, limits, allowedOrigins: [], trustProxy: true });
@@ -516,6 +521,42 @@ describe('agente de demostración', () => {
     // Un permiso que no es de esa cuenta no se puede usar.
     const error = await errorOf(client.agent.task({ owner: newUser().account.address, permitId, task: 'paga algo' }));
     expect(error?.code).toBe('PermitNotYours');
+  });
+
+  it('vigilante de Chainlink CRE: si AvalRiskGuard marca al agente, el agente no paga', async (ctx) => {
+    needAnvil(ctx);
+    // AvalRiskGuard de prueba: el "forwarder" es una cuenta de la prueba (en Monad lo es el de Chainlink).
+    const forwarderKey = generatePrivateKey();
+    const forwarder = privateKeyToAccount(forwarderKey).address;
+    await createTestClient({ chain, mode: 'anvil', transport: http(RPC) }).setBalance({ address: forwarder, value: parseEther('10') });
+    const artifact = JSON.parse(readFileSync(new URL('../../../contracts/out/AvalRiskGuard.sol/AvalRiskGuard.json', import.meta.url), 'utf8')) as {
+      abi: never;
+      bytecode: { object: `0x${string}` };
+    };
+    const deployHash = await wallet(forwarderKey).deployContract({ abi: artifact.abi, bytecode: artifact.bytecode.object, args: [forwarder] });
+    const guardAddress = (await publicClient.waitForTransactionReceipt({ hash: deployHash })).contractAddress!;
+
+    const { client } = await setupAgent({}, undefined, guardAddress);
+    const { user, permitId } = await userWithPermit(client);
+    // Antes de la alerta, el agente paga.
+    await client.agent.spend({ permitId, amount: 10_000_000n });
+
+    // El vigilante entrega su reporte (nivel 2 = bloquear) a través del forwarder.
+    const metadata = `0x${'00'.repeat(32)}${'00'.repeat(10)}${forwarder.slice(2)}0001` as `0x${string}`;
+    const report = encodeAbiParameters(parseAbiParameters('address, uint8, uint64, string'), [agentAddress, 2, 1n, 'Pagos divididos']);
+    const reportHash = await wallet(forwarderKey).writeContract({
+      address: guardAddress,
+      abi: parseAbi(['function onReport(bytes metadata, bytes report)']),
+      functionName: 'onReport',
+      args: [metadata, report],
+    });
+    await publicClient.waitForTransactionReceipt({ hash: reportHash });
+
+    const blocked = await errorOf(client.agent.spend({ permitId, amount: 10_000_000n }));
+    expect(blocked?.code).toBe('AgentBlockedByGuard');
+    expect(blocked?.message).toContain('Pagos divididos');
+    expect((await errorOf(client.agent.request({ permitId, amount: 80_000_000n })))?.code).toBe('AgentBlockedByGuard');
+    void user;
   });
 
   it('sin Qwen configurado, /agent/task responde que no está disponible', async (ctx) => {

@@ -1,0 +1,9 @@
+{
+  "chainSelectorName": "monad-testnet",
+  "agentPermit": "0x00F0C1b1FB751c380dF0132001eab6ca110Fc2DA",
+  "riskGuard": "0xF31D199340894918f61A7C80864bA4E9332F28c7",
+  "qwenUrl": "https://maas.qwencloudapi.com/compatible-mode/v1/chat/completions",
+  "qwenModel": "qwen3.8-max",
+  "windowSeconds": 600,
+  "gasLimit": "500000"
+}

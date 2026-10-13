@@ -30,6 +30,8 @@ const env = z.object({
   /** Agente de demostración (opcional). Si se pone la clave, hacen falta también la billetera y el ID del servicio. */
   /** Agente con Qwen (opcional): sin clave, la ruta /agent/task responde que no está disponible. */
   QWEN_API_KEY: z.string().min(10).optional(),
+  /** AvalRiskGuard del vigilante de Chainlink CRE (opcional): el agente no paga si está marcado. */
+  RISK_GUARD_ADDRESS: z.string().regex(/^0x[0-9a-fA-F]{40}$/).optional(),
   QWEN_BASE_URL: z.string().url().default('https://maas.qwencloudapi.com/compatible-mode/v1'),
   QWEN_MODEL: z.string().min(1).default('qwen3.8-max'),
   AGENT_PRIVATE_KEY: z.string().regex(/^0x[0-9a-fA-F]{64}$/, 'AGENT_PRIVATE_KEY debe ser 0x + 64 hex').optional(),
@@ -46,6 +48,7 @@ export type ServerConfig = {
   limits: Limits;
   demoAgent?: { privateKey: `0x${string}`; service: { address: Address; agentId: bigint } };
   qwen?: { apiKey: string; baseUrl: string; model: string };
+  riskGuard?: Address;
 };
 
 export function loadConfig(source: Record<string, string | undefined> = process.env): ServerConfig {
@@ -73,6 +76,7 @@ export function loadConfig(source: Record<string, string | undefined> = process.
     port: e.PORT,
     allowedOrigins: e.ALLOWED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean),
     trustProxy: e.TRUST_PROXY === 'true',
+    ...(e.RISK_GUARD_ADDRESS ? { riskGuard: e.RISK_GUARD_ADDRESS as Address } : {}),
     ...(e.QWEN_API_KEY ? { qwen: { apiKey: e.QWEN_API_KEY, baseUrl: e.QWEN_BASE_URL, model: e.QWEN_MODEL } } : {}),
     ...(hasAgentKey
       ? {

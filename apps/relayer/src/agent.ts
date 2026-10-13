@@ -1,5 +1,10 @@
 import { AvalError, type AvalAddresses, agentMemorySlot, createAval, openMemory, sealedVersion } from '@aval/sdk';
-import { type Address, type Hash, type Hex, type PublicClient, type WalletClient, formatEther, hexToBytes } from 'viem';
+import { type Address, type Hash, type Hex, type PublicClient, type WalletClient, formatEther, hexToBytes, parseAbi } from 'viem';
+
+const riskGuardAbi = parseAbi([
+  'function isBlocked(address agent) view returns (bool)',
+  'function alertOf(address agent) view returns ((uint8 level, uint64 observedAt, string reason))',
+]);
 import { type Limits, RelayerError, SlidingWindow } from './limits.js';
 import { type Context, createRuntime, limited } from './runtime.js';
 
@@ -11,6 +16,11 @@ export type DemoAgentOptions = {
   limits: Limits;
   /** Servicio al que el agente le paga: un agente registrado en ERC-8004 cuya billetera recibe los pagos. */
   service: { address: Address; agentId: bigint };
+  /**
+   * AvalRiskGuard (opcional): contrato donde el vigilante de Chainlink CRE marca agentes riesgosos. Si este agente está
+   * marcado para bloquear, no paga ni pide pagos hasta que el vigilante lo desmarque.
+   */
+  riskGuard?: Address;
   now?: () => number;
 };
 
@@ -42,6 +52,15 @@ export function createDemoAgent(options: DemoAgentOptions) {
   const reviewsByIp = new SlidingWindow(60 * 60_000);
   // Leer la memoria no gasta gas, pero igual se limita para que nadie use al agente como lector gratuito.
   const recallsByIp = new SlidingWindow(60_000);
+
+  /** Respeta la alerta del vigilante de Chainlink CRE: si el agente está bloqueado, no mueve dinero. */
+  async function respectRiskGuard() {
+    if (!options.riskGuard) return;
+    const blocked = await publicClient.readContract({ address: options.riskGuard, abi: riskGuardAbi, functionName: 'isBlocked', args: [account!.address] });
+    if (!blocked) return;
+    const alert = await publicClient.readContract({ address: options.riskGuard, abi: riskGuardAbi, functionName: 'alertOf', args: [account!.address] });
+    throw new RelayerError(403, 'AgentBlockedByGuard', 'El vigilante de Chainlink CRE bloqueó al agente: ' + alert.reason);
+  }
 
   return {
     address: account.address,
@@ -82,6 +101,7 @@ export function createDemoAgent(options: DemoAgentOptions) {
     /** El agente le paga al servicio dentro de lo que su permiso permite. Si supera el umbral, el contrato lo rechaza. */
     async spend(input: { permitId: bigint; amount: bigint; ref?: string }, ctx: Context): Promise<{ hash: Hash }> {
       await guard(ctx, `agent-spend:${input.permitId}`);
+      await respectRiskGuard();
       return execute(async () => ({
         hash: (await aval.permits.spend({ permitId: input.permitId, to: service.address, amount: input.amount, ref: input.ref })).hash,
       }));
@@ -90,6 +110,7 @@ export function createDemoAgent(options: DemoAgentOptions) {
     /** El agente pide un pago que supera el umbral: queda pendiente hasta que el usuario lo apruebe con su huella. */
     async request(input: { permitId: bigint; amount: bigint; ref?: string }, ctx: Context): Promise<{ hash: Hash; requestId: bigint }> {
       await guard(ctx, `agent-request:${input.permitId}`);
+      await respectRiskGuard();
       return execute(async () => {
         const { hash, requestId } = await aval.permits.requestSpend({
           permitId: input.permitId,

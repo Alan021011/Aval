@@ -39,6 +39,7 @@ export function createFromEnv(source: Record<string, string | undefined> = proce
         addresses: monadTestnet,
         limits: config.limits,
         service: config.demoAgent.service,
+        ...(config.riskGuard ? { riskGuard: config.riskGuard } : {}),
       })
     : undefined;
 
