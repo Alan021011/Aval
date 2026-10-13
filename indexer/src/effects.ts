@@ -12,8 +12,9 @@ const IDENTITY_REGISTRY = "0x8004A818BFB912233c491871b3d84c89A494BD9e";
 const RPC_URLS = [
   ...(process.env.ENVIO_RPC_URL ? [process.env.ENVIO_RPC_URL] : []),
   "https://testnet-rpc.monad.xyz",
-  "https://rpc-testnet.monadinfra.com",
-  "https://monad-testnet.drpc.org",
+  // Probados con lotes de eth_call. No sirven: dRPC (rechaza el eth_call por límite de gas) y monadinfra (403 en lotes).
+  "https://rpc.ankr.com/monad_testnet",
+  "https://10143.rpc.thirdweb.com",
 ];
 
 const client = createPublicClient({
