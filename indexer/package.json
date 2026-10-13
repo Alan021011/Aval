@@ -19,5 +19,6 @@
   },
   "engines": {
     "node": ">=22.15.0"
-  }
+  },
+  "description": "Indexador de Aval (Envio HyperIndex): permisos, pagos, reseñas y puntaje verificado de agentes en Monad testnet"
 }
