@@ -67,7 +67,7 @@ pnpm test                # pruebas con eventos simulados
 pnpm dev                 # corre contra Monad testnet; GraphQL en http://localhost:8080 (contraseña: testing)
 ```
 
-Un ejemplo de consulta:
+Un ejemplo de consulta (en Envio Cloud cada fila se identifica por `id` y `chainId`; Monad testnet es 10143):
 
 ```graphql
 {
