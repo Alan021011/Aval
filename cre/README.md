@@ -42,4 +42,6 @@ Sin `--broadcast`, la simulación hace todo menos enviar la transacción del rep
 
 ## Para producción
 
+**El guardián desplegado es solo de simulación.** Usa el forwarder de simulación de CRE, que no verifica firmas: cualquiera puede entregarle un reporte falso (y `expectedWorkflowOwner` viaja dentro del propio reporte, así que no protege). Por eso `RISK_GUARD_ADDRESS` no está activo en el relayer de producción y no debe activarse con ese contrato. El agente de demo aparece marcado en él por la prueba de fraccionamiento.
+
 Desplegar `AvalRiskGuard` con el forwarder de producción (`RISK_GUARD_FORWARDER=0xF8344CFd5c43616a4366C34E3EEE75af79a74482`), fijar `setExpectedWorkflowOwner` con el dueño del workflow, guardar `QWEN_API_KEY` en el Vault DON y desplegar el workflow (`cre account access` para pedir acceso). En el relayer, `RISK_GUARD_ADDRESS` activa la comprobación del agente.

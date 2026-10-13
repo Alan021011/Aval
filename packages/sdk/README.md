@@ -84,7 +84,7 @@ Dentro de este monorepo ya está disponible como workspace (`packages/sdk`).
 
 | Método | Qué hace |
 |---|---|
-| `summary(agentId, { tag1?, tag2?, minPaid?, verifier? })` | `{ count, value, decimals, verifiedClients }` contando solo clientes con recibo. `minPaid` exige un pago mínimo. `verifier` es un contrato que decide quién es una persona verificada. |
+| `summary(agentId, { tag1?, tag2?, minPaid?, verifier? })` | `{ count, value, decimals, verifiedClients }` contando solo clientes con recibo. `minPaid` exige un pago mínimo (por defecto 1 tUSD, `DEFAULT_MIN_PAID`). `verifier` es un contrato que decide quién es una persona verificada. |
 | `clients(agentId, { minPaid?, verifier? })` | Las cuentas que cuentan. |
 
 ### `aval.agents` y `aval.reputation.review`

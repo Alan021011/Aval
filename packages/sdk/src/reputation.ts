@@ -24,6 +24,12 @@ export type SummaryOptions = {
 
 const ZERO: Address = '0x0000000000000000000000000000000000000000';
 
+/**
+ * Pago mínimo acumulado (1 tUSD, 6 decimales) para que un cliente cuente. Con 0, una cuenta que pagó nada seguiría
+ * contando como cliente verificado; en testnet pagar es gratis (el faucet es público), así que esto solo encarece el fraude.
+ */
+export const DEFAULT_MIN_PAID = 1_000_000n;
+
 export function createReputation(ctx: Ctx) {
   const address = ctx.addresses.reputationReader;
 
@@ -37,7 +43,7 @@ export function createReputation(ctx: Ctx) {
         address,
         abi: reputationReaderAbi,
         functionName: 'verifiedSummary',
-        args: [agentId, options.tag1 ?? '', options.tag2 ?? '', options.minPaid ?? 0n, options.verifier ?? ZERO],
+        args: [agentId, options.tag1 ?? '', options.tag2 ?? '', options.minPaid ?? DEFAULT_MIN_PAID, options.verifier ?? ZERO],
       });
       return {
         count: BigInt(result.count),
@@ -53,7 +59,7 @@ export function createReputation(ctx: Ctx) {
         address,
         abi: reputationReaderAbi,
         functionName: 'verifiedClients',
-        args: [agentId, options.minPaid ?? 0n, options.verifier ?? ZERO],
+        args: [agentId, options.minPaid ?? DEFAULT_MIN_PAID, options.verifier ?? ZERO],
       });
     },
   };
