@@ -14,11 +14,11 @@ La interfaz sigue el diseño de Stitch (*Aval Agent Spending Control*), hecha co
 |---|---|---|
 | **Inicio** | Un botón: «Empezar con mi huella» | Cuenta nueva con **una sola ceremonia** de passkey (Mera): sin frase secreta, sin extensión, sin correo ni contraseña |
 | **Preparando** | Crea la cuenta, recibe tUSD de prueba y registra la clave de la huella | Todo lo envía el relayer: el usuario **no necesita MON** |
-| **Permiso** | Máximo por pago, total, umbral de aprobación y vencimiento | Se firma **sin ventanas** con la sesión abierta; el contrato aplica los límites |
-| **Tu agente en acción** | Pagar, intentar pagar de más, pedir un pago grande, reseñar | Cada caso lo decide el contrato, y el bloqueo se explica con montos en tUSD |
+| **Permiso y agente** | Máximo por pago, total, umbral de aprobación y vencimiento; botones para pagar, intentar pagar de más, pedir un pago grande y reseñar | El permiso se firma **sin ventanas** con la sesión abierta; cada caso lo decide el contrato y el bloqueo se explica con montos en tUSD |
+| **Pídele a tu agente** | Una tarea en lenguaje natural | **Qwen 3.8 Max** planifica con 6 herramientas reales, reacciona a los rechazos del contrato y muestra su razonamiento (en inglés, tal cual lo devuelve el modelo). Tarda de 10 a 30 s |
 | **Aprobaciones** | Pagos grandes pendientes | **Aprobar con la huella** (la ventana de passkey aparece a propósito): se verifica en la cadena con el precompile P256 de Monad |
-| **Actividad** | Pagos y bloqueos | Los pagos se leen de los **recibos onchain**, no de memoria |
-| **Reputación** | Puntaje del servicio | Solo cuentan reseñas de quienes **de verdad le pagaron** |
+| **Recibos y reputación** | Pagos, bloqueos y puntaje del servicio | Los pagos se leen de los **recibos onchain**; solo cuentan reseñas de quienes **de verdad le pagaron** |
+| **Memoria del agente** | Una parte privada y otra compartida con el agente | Cifrada con claves derivadas de la passkey; se puede compartir y revocar (revocar protege lo que se escriba después). La prueba entre dos dispositivos con passkey real está pendiente |
 | **Inspector** | Contratos, clave P256, hashes, tiempos | Todo lo que la vista de usuario oculta, para los jueces |
 
 ## Sesión y prueba sin estado
@@ -42,7 +42,7 @@ npm run dev            # http://localhost:5173
 
 Por defecto usa el relayer publicado (`https://aval-relayer.vercel.app`). Para usar uno propio: `VITE_RELAYER_URL=http://localhost:8787 npm run dev`. El relayer debe tener tu origen en `ALLOWED_ORIGINS`.
 
-Las lecturas de la cadena usan **tres RPC públicos con respaldo automático**: si uno no responde (el principal ha tenido caídas cortas), pasa al siguiente.
+Las lecturas de la cadena usan **tres RPC públicos con respaldo automático**: si uno no responde (el principal ha tenido caídas cortas), pasa al siguiente. Los dos de respaldo no siempre aceptan todas las llamadas, así que el respaldo es parcial.
 
 ## Pruebas
 

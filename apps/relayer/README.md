@@ -6,7 +6,7 @@ El relayer **nunca recibe claves privadas**. Solo recibe firmas, que no sirven p
 
 ## Qué puede y qué no puede hacer
 
-Solo envía cinco operaciones con los contratos de Aval. No envía datos arbitrarios, así que no sirve para hacer otra cosa con su dinero.
+Solo envía seis operaciones firmadas por el usuario (registrar passkey, permiso de token, crear permiso, revocar, aprobar y guardar memoria) y las acciones fijas del agente de demostración. No envía datos arbitrarios, así que no sirve para hacer otra cosa con su dinero.
 
 | Ruta | Qué envía | Firma del usuario |
 |---|---|---|
@@ -34,7 +34,8 @@ Para mostrar el flujo completo alguien tiene que hacer de agente de IA: pagar de
 - **Solo usa permisos que un usuario le dio a su cuenta**: el contrato rechaza cualquier otro (`NotAgent`).
 - Comparte las mismas protecciones que el relayer: límites por IP y por usuario, tope diario, reintento ante choques de nonce y su **propia cola** de envío, porque es otra cuenta con su propio nonce.
 - Si no se configura `AGENT_PRIVATE_KEY`, sus rutas responden `404 DemoAgentDisabled`.
-- Con el SDK: `relayer.agent.info()`, `.spend()`, `.request()` y `.review()`.
+- Con el SDK: `relayer.agent.info()`, `.spend()`, `.request()`, `.review()`, `.recall()` y `.task()`.
+- **Sin autenticación del dueño:** estas rutas solo reciben un `permitId` u `owner`, que son públicos en la cadena. Cualquiera podría hacer que el agente de demostración gaste un permiso ajeno dentro de sus límites, llene sus aprobaciones o publique reseñas. Es una limitación conocida de la demo: para producción deben exigir una firma EIP-712 del dueño.
 
 Prueba real del flujo completo contra un relayer en marcha (un usuario sin MON, con una passkey simulada para la aprobación):
 
@@ -51,7 +52,7 @@ Con `QWEN_API_KEY` (Qwen Cloud), `POST /agent/task` recibe una tarea y `qwen3.8-
 - **Modo thinking:** el razonamiento (`reasoning_content`) se devuelve a Qwen en cada vuelta, como exige la API, y se muestra en la demo. `thinking_budget` acota cuánto piensa.
 - **Reacciona al contrato:** si un pago se rechaza, el motivo vuelve a Qwen con los montos en tUSD y cambia de plan (por ejemplo, `NeedsApproval` → pide la aprobación del usuario).
 - **Límites:** solo usa permisos del usuario que sean para este agente; 6 tareas por minuto por IP; plazo de 50 s por tarea (la función de Vercel tiene 60 s); la clave nunca aparece en errores ni registros.
-- **Regla aprendida en una prueba real:** con 150 tUSD y un máximo de 100, Qwen dividió el pago en 50 + 100. Ahora tiene prohibido dividir pagos para esquivar un límite (la defensa de fondo sigue siendo el contrato).
+- **Regla aprendida en una prueba real:** con 150 tUSD y un máximo de 100, Qwen dividió el pago en 50 + 100. Ahora tiene prohibido dividir pagos para esquivar un límite, y además el relayer **suma lo pagado en la tarea** y exige pedir aprobación al pasar el umbral del permiso. El contrato mide el umbral **por pago**, no acumulado, así que la suma por tarea es una defensa del relayer (no cubre varias tareas) y la defensa de fondo sigue siendo el contrato.
 
 Variables: `QWEN_API_KEY` (secreta), `QWEN_MODEL` (por defecto `qwen3.8-max`), `QWEN_BASE_URL` (por defecto `https://maas.qwencloudapi.com/compatible-mode/v1`). Sin clave, la ruta responde `AgentBrainDisabled`.
 
@@ -59,7 +60,7 @@ Variables: `QWEN_API_KEY` (secreta), `QWEN_MODEL` (por defecto `qwen3.8-max`), `
 
 Sin estas reglas, cualquiera podría gastarle el gas:
 
-1. **Solo las cinco operaciones de arriba**, con esquemas estrictos: un campo extra o fuera de rango se rechaza.
+1. **Solo las operaciones de arriba**, con esquemas estrictos: un campo extra o fuera de rango se rechaza.
 2. **Simula antes de enviar.** Una firma falsa, vencida o repetida se rechaza **sin gastar gas** (hay una prueba que comprueba que el nonce del relayer no cambia).
 3. **Solo trabaja con tokens permitidos** (por defecto, el tUSD del despliegue).
 4. **Límites por IP y por usuario** (30 y 10 por minuto por defecto), con `Retry-After`.
@@ -83,7 +84,7 @@ npm run dev              # desde apps/relayer; escucha en http://localhost:8787
 2. `.env` está en `.gitignore`. La clave nunca se imprime en ningún log.
 3. Antes de arrancar, reconstruye el SDK una vez (`npm run build:sdk` en la raíz), porque el relayer lo usa desde `dist`.
 
-Variables (ver [`.env.example`](.env.example)): `RELAYER_PRIVATE_KEY`, `RPC_URL`, `PORT`, `ALLOWED_ORIGINS`, `TRUST_PROXY`, `ALLOWED_TOKENS`, `MIN_BALANCE_MON` y los límites opcionales.
+Variables (ver [`.env.example`](.env.example)): `RELAYER_PRIVATE_KEY`, `RPC_URL` (una o varias separadas por comas; por defecto Ankr, la pública de Monad y thirdweb), `PORT`, `ALLOWED_ORIGINS`, `TRUST_PROXY`, `ALLOWED_TOKENS`, `MIN_BALANCE_MON`, `AGENT_PRIVATE_KEY`, `QWEN_API_KEY` y los límites opcionales. `RISK_GUARD_ADDRESS` hace que el agente consulte `AvalRiskGuard` antes de pagar; **está desactivada en producción**: el guardián desplegado usa el forwarder de simulación de CRE, cuyos reportes cualquiera puede falsificar (ver `cre/README.md`).
 
 > **`TRUST_PROXY`:** actívalo solo detrás de un proxy de confianza (Vercel, nginx…). Si no, cualquiera podría falsear su IP con la cabecera `x-forwarded-for` y saltarse los límites por IP. Con `false` (por defecto) se usa la IP real de la conexión.
 
@@ -121,13 +122,13 @@ Crea un usuario nuevo sin MON, le pide tUSD al relayer, registra su clave de pas
 npm test
 ```
 
-14 pruebas contra los contratos desplegados, sobre una copia local de Monad testnet (`anvil`): el flujo completo sin MON del usuario, varias operaciones a la vez, firmas falsas o vencidas, tokens no permitidos, solicitudes mal formadas, límites, saldo bajo, CORS y que no se filtre la clave. Si `anvil` no está instalado, se saltan.
+35 pruebas contra los contratos desplegados, sobre una copia local de Monad testnet (`anvil`): el flujo completo sin MON del usuario, varias operaciones a la vez, firmas falsas o vencidas, tokens no permitidos, solicitudes mal formadas, límites, saldo bajo, CORS y que no se filtre la clave. Si `anvil` no está instalado, se saltan.
 
 ## Despliegue en Vercel
 
 **En vivo:** https://aval-relayer.vercel.app (Monad testnet). `GET /health` muestra su estado y saldo. Probado en vivo: un usuario sin MON recibe tUSD y registra su passkey en ~6 s, y 10 operaciones simultáneas llegan todas (dos corridas, 20 de 20).
 
-`api/index.ts` es la entrada para Vercel: una función Node que atiende `/health`, `/relay/*` y `/faucet`. `vercel.json` ya trae el comando de instalación, el de compilación del SDK y las reglas de reenvío.
+`api/index.ts` es la entrada para Vercel: una función que atiende `/health`, `/relay/*`, `/agent/*` y `/faucet`. `vercel.json` ya trae el comando de instalación, el de compilación del SDK y las reglas de reenvío.
 
 Ajustes del proyecto en Vercel:
 
@@ -154,7 +155,7 @@ Lo que cambia respecto a un servidor normal:
 
 - **Varias instancias a la vez.** Vercel puede correr copias de la función en paralelo, cada una con su propia cola. Dos copias pueden elegir el mismo nonce y una choca. Cuando eso pasa la transacción no llegó a enviarse, así que el relayer la **reintenta sola** (hasta `MAX_NONCE_RETRIES`, 6 por defecto). Está probado, también inyectando el error.
 - **Los límites no se comparten entre copias.** Cada instancia cuenta por su cuenta, así que el límite por IP es aproximado. Para algo más estricto hay que moverlo a un almacén compartido (por ejemplo, Upstash Redis).
-- **Tiempo máximo por función.** En el plan gratuito es corto (10 s según la documentación pública). Medido en vivo: el flujo completo de la prueba (dos operaciones) tarda ~6 s y diez operaciones simultáneas ~6 s.
+- **Tiempo máximo por función.** El plan gratuito es corto (10 s según la documentación pública); `vercel.json` fija 60 s para que las tareas de Qwen (hasta 50 s) quepan. Medido en vivo: el flujo completo de la prueba (dos operaciones) tarda ~6 s y diez operaciones simultáneas ~6 s.
 - **Si falta una variable de entorno**, la función responde `ServerMisconfigured` (HTTP 500) y el motivo queda en los registros de Vercel, en vez de no arrancar.
 
 Para probar la función de Vercel en tu equipo, sin desplegar:

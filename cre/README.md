@@ -14,6 +14,8 @@ El **relayer puede respetar la alerta** (si se activa `RISK_GUARD_ADDRESS`, apag
 
 ## Despliegue y prueba en Monad testnet
 
+**Alcance real:** `AvalRiskGuard` está desplegado en Monad testnet, pero el workflow **solo se ha simulado** (`cre workflow simulate --broadcast`): no está desplegado en la red de Chainlink. La alerta que llega a la cadena es real; el disparo automático por cada pago no corre solo.
+
 | | |
 |---|---|
 | `AvalRiskGuard` | `0xF31D199340894918f61A7C80864bA4E9332F28c7` (verificado), con el forwarder de simulación de CRE `0xB9F79d863261869B234c481D1f9A7af84AeAd192` |

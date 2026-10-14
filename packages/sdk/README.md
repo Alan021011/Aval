@@ -54,7 +54,7 @@ Dentro de este monorepo ya está disponible como workspace (`packages/sdk`).
 
 ## Referencia
 
-`createAval({ publicClient, walletClient?, addresses?, assertionProvider? })` devuelve cuatro módulos.
+`createAval({ publicClient, walletClient?, addresses?, assertionProvider? })` devuelve los módulos `permits`, `passkeys`, `reputation`, `agents`, `tokens` y `memory`. Además se exportan `createRelayerClient`, `createIndexerClient` y las utilidades de WebAuthn y de cifrado.
 
 ### `aval.permits`
 
@@ -103,6 +103,22 @@ Registro de agentes en ERC-8004 (los registros oficiales de Monad ya están desp
 
 Para que el usuario no necesite MON: `signPermit({ value })` → `relayPermit(signed)` autoriza a AgentPermit con una firma (ERC-2612). También `approve`, `balanceOf` y `faucet` (hasta 1.000 tUSD, solo testnet).
 
+### `aval.memory` y cifrado de la memoria
+
+Memoria cifrada del usuario y de sus agentes, guardada en `MemoryVault` (almacenamiento no confiable: solo ve bytes cifrados).
+
+| Método | Qué hace |
+|---|---|
+| `memory.read(owner, slot)` | Bytes cifrados de un casillero (cualquiera puede leerlos; solo sirven con la clave). |
+| `memory.store(slot, data)` | Guarda un casillero propio (la cuenta paga el gas). |
+| `memory.signStore(slot, data)` → `memory.relayStore(signed)` | El usuario firma sin gas y un relayer envía. |
+
+Funciones exportadas, puras y sin red: `MEMORY_PRF_SALT` (`aval/memory/v1`), `deriveMemoryKeys` (HKDF: una clave privada y una por agente y versión a partir del secreto PRF), `sealMemory` / `openMemory` / `sealedVersion` (AES-GCM) y `privateMemorySlot` / `agentMemorySlot`. Compartir con un agente es entregarle la clave de su parte; revocar es volver a cifrar con la versión siguiente. **Límites:** revocar protege lo que se escriba después, no lo que el agente ya leyó ni las versiones antiguas que siguen en el historial de la cadena; cada casillero admite hasta 4 KB. La prueba entre dos dispositivos con una passkey real está pendiente (el cifrado y descifrado sí están probados).
+
+### `createIndexerClient`
+
+Cliente de GraphQL para un indexador de Envio HyperIndex (ver [`indexer/`](../../indexer/README.md)): `payments(owner)`, `verifyAgentScore(agentId)` (descarga los datos crudos, **recalcula el puntaje con `computeVerifiedScore`** y avisa si no coincide con el del indexador) y las consultas del puntaje. **Estado:** probado con datos reales de Monad testnet vía HyperSync y con un indexador local; **no hay un indexador de Aval desplegado y público**, así que la demo en vivo no lo usa.
+
 ### `createRelayerClient`
 
 Cliente de un [relayer](../../apps/relayer/README.md): le envías lo que el usuario firmó y él paga el gas.
@@ -115,7 +131,7 @@ await relayer.grant(await aval.permits.signGrant({ agent, ... }));       // crea
 await relayer.approve(requestId, await aval.permits.signApproval(requestId));
 ```
 
-Métodos: `health`, `register`, `grant`, `revoke`, `tokenPermit`, `approve`, `faucet` y `agent.info` / `agent.spend` / `agent.request` / `agent.review` (el agente de demostración del relayer). Los errores llegan como `AvalError` (por ejemplo `RateLimited`, `TokenNotAllowed`). `serialize` y `deserialize` conservan los `bigint` al enviar JSON.
+Métodos: `health`, `register`, `grant`, `revoke`, `tokenPermit`, `approve`, `storeMemory`, `faucet` y `agent.info` / `agent.spend` / `agent.request` / `agent.review` / `agent.recall` / `agent.task` (el agente de demostración del relayer; `task` lo planifica con Qwen). Los errores llegan como `AvalError` (por ejemplo `RateLimited`, `TokenNotAllowed`). `serialize` y `deserialize` conservan los `bigint` al enviar JSON.
 
 ### Passkeys y WebAuthn
 
