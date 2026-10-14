@@ -84,7 +84,7 @@ Registros ERC-8004 en Monad testnet: Identity `0x8004A818BFB912233c491871b3d84c8
 
 ### `MemoryVault`
 
-Almacenamiento remoto **no confiable** para la memoria cifrada del usuario y sus agentes. Solo guarda bytes que ya llegan cifrados desde el dispositivo (AES-GCM con claves derivadas de la passkey): el contrato, el relayer y cualquiera que lea la cadena ven ruido. La misma passkey en otro dispositivo debería encontrar los datos y descifrarlos (la prueba con una passkey real en dos dispositivos está pendiente).
+Almacenamiento remoto **no confiable** para la memoria cifrada del usuario y sus agentes. Solo guarda bytes que ya llegan cifrados desde el dispositivo (AES-GCM con claves derivadas de la passkey): el contrato, el relayer y cualquiera que lea la cadena ven ruido. La misma passkey en otro dispositivo encuentra los datos y los descifra (probado con una passkey real en dos dispositivos el 13-oct).
 
 - `store(slot, data)`: guarda (o borra, con `data` vacío) un casillero propio. Máximo 4 KB.
 - `storeFor(owner, slot, data, deadline, signature)`: lo mismo con una firma EIP-712 del dueño sobre el hash exacto de los datos, para que un relayer pague el gas (nonce contra repeticiones y fecha límite).

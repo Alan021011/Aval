@@ -113,7 +113,7 @@ Memoria cifrada del usuario y de sus agentes, guardada en `MemoryVault` (almacen
 | `memory.store(slot, data)` | Guarda un casillero propio (la cuenta paga el gas). |
 | `memory.signStore(slot, data)` → `memory.relayStore(signed)` | El usuario firma sin gas y un relayer envía. |
 
-Funciones exportadas, puras y sin red: `MEMORY_PRF_SALT` (`aval/memory/v1`), `deriveMemoryKeys` (HKDF: una clave privada y una por agente y versión a partir del secreto PRF), `sealMemory` / `openMemory` / `sealedVersion` (AES-GCM) y `privateMemorySlot` / `agentMemorySlot`. Compartir con un agente es entregarle la clave de su parte; revocar es volver a cifrar con la versión siguiente. **Límites:** revocar protege lo que se escriba después, no lo que el agente ya leyó ni las versiones antiguas que siguen en el historial de la cadena; cada casillero admite hasta 4 KB. La prueba entre dos dispositivos con una passkey real está pendiente (el cifrado y descifrado sí están probados).
+Funciones exportadas, puras y sin red: `MEMORY_PRF_SALT` (`aval/memory/v1`), `deriveMemoryKeys` (HKDF: una clave privada y una por agente y versión a partir del secreto PRF), `sealMemory` / `openMemory` / `sealedVersion` (AES-GCM) y `privateMemorySlot` / `agentMemorySlot`. Compartir con un agente es entregarle la clave de su parte; revocar es volver a cifrar con la versión siguiente. **Límites:** revocar protege lo que se escriba después, no lo que el agente ya leyó ni las versiones antiguas que siguen en el historial de la cadena; cada casillero admite hasta 4 KB. Probado con una passkey real en dos dispositivos (13-oct): la misma passkey abre la memoria guardada, y tras revocar la clave del agente deja de abrirla.
 
 ### `createIndexerClient`
 

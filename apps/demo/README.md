@@ -18,7 +18,7 @@ La interfaz sigue el diseño de Stitch (*Aval Agent Spending Control*), hecha co
 | **Pídele a tu agente** | Una tarea en lenguaje natural | **Qwen 3.8 Max** planifica con 6 herramientas reales, reacciona a los rechazos del contrato y muestra su razonamiento (en inglés, tal cual lo devuelve el modelo). Tarda de 10 a 30 s |
 | **Aprobaciones** | Pagos grandes pendientes | **Aprobar con la huella** (la ventana de passkey aparece a propósito): se verifica en la cadena con el precompile P256 de Monad |
 | **Recibos y reputación** | Pagos, bloqueos y puntaje del servicio | Los pagos se leen de los **recibos onchain**; solo cuentan reseñas de quienes **de verdad le pagaron** |
-| **Memoria del agente** | Una parte privada y otra compartida con el agente | Cifrada con claves derivadas de la passkey; se puede compartir y revocar (revocar protege lo que se escriba después). La prueba entre dos dispositivos con passkey real está pendiente |
+| **Memoria del agente** | Una parte privada y otra compartida con el agente | Cifrada con claves derivadas de la passkey; se puede compartir y revocar (revocar protege lo que se escriba después). Probado con una passkey real en dos dispositivos (13-oct) |
 | **Inspector** | Contratos, clave P256, hashes, tiempos | Todo lo que la vista de usuario oculta, para los jueces |
 
 ## Sesión y prueba sin estado
