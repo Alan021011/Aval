@@ -94,6 +94,8 @@ Si Envio deja de registrar los pushes, reinstala la app **Envio Deployments** en
 
 **GraphQL público:** https://indexer.dev.hyperindex.xyz/78c4620/v1/graphql
 
+**Estado (13-oct): no hay un despliegue accesible.** El despliegue en Envio Cloud se detuvo y después Envio dejó de registrar los pushes de GitHub (ver el README raíz). Lo que sigue describe cómo se despliega cuando la plataforma lo acepte.
+
 Se despliega en **Envio Cloud** (organización `alan021011`, indexador `aval-indexer`, plan de desarrollo, acceso público) con despliegue automático desde la rama `envio` (una copia de `main` que se actualiza con `git push origin main:envio`), carpeta `indexer`. Cada push que cambie algo ahí genera una versión nueva. La variable se puede cargar al crear el indexador (`npx envio-cloud indexer add ... --env-file .env`). El indexador necesita la variable `ENVIO_API_TOKEN` (con tu token de https://envio.dev/app/api-tokens): se carga con `npx envio-cloud indexer env set aval-indexer <org> ENVIO_API_TOKEN=...` y se aplica en el siguiente despliegue. Un token revocado devuelve HTTP 403 en HyperSync. Para ver el estado, los logs y el historial de acciones (el panel tiene una página *Activity* con cada push recibido):
 
 ```bash
