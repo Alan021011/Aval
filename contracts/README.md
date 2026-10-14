@@ -13,6 +13,7 @@ Código verificado (coincidencia exacta) en el Sourcify de Monad, visible en Mon
 | `TestUSD` | [`0xeD4Bb1e1926441461BcADA4BBF647Aba8574B3C5`](https://testnet.monadvision.com/address/0xeD4Bb1e1926441461BcADA4BBF647Aba8574B3C5) |
 | `ReputationReader` | [`0x831EeA5808B40C2f1fE49d817B056D3d54E685D6`](https://testnet.monadvision.com/address/0x831EeA5808B40C2f1fE49d817B056D3d54E685D6) |
 | `MemoryVault` | [`0x58Ff042D37cd4Aa9477cd55A6c59C1e4b9418881`](https://testnet.monadvision.com/address/0x58Ff042D37cd4Aa9477cd55A6c59C1e4b9418881) |
+| `AvalRiskGuard` | [`0xF31D199340894918f61A7C80864bA4E9332F28c7`](https://testnet.monadvision.com/address/0xF31D199340894918f61A7C80864bA4E9332F28c7) |
 
 `AgentPermit` y `ReputationReader` se redesplegaron al agregar los listados (las direcciones anteriores quedan en `deployments/monad-testnet.json`, bajo `previous`). `script/DeployPermits.s.sol` redespliega solo esos dos y reutiliza `PasskeyRegistry` y `TestUSD`.
 
@@ -57,6 +58,8 @@ Cada permiso (`Terms`) fija: agente, ID en ERC-8004, token, máximo por gasto, t
 | `requestIdsOf(owner, offset, limit)`, `requestCountOf(owner)` | — | Pedidos de gasto sobre los permisos de un usuario (pendientes, ejecutados o vencidos) |
 | `receiptsOf(owner, offset, limit)`, `receiptCountOf(owner)` | — | Libro de recibos de los pagos de un usuario: destinatario, permiso, monto, pedido, fecha y referencia |
 
+**Límites conocidos (testnet, sin auditoría):** el umbral de aprobación se mide **por pago**, no acumulado, y no hay un límite por periodo (solo `maxTotal`): varios pagos bajo el umbral pasan sin aprobación. `spend` acepta `amount == 0` y registra al pagador igual.
+
 **Por qué hay listados y recibos onchain:** los RPC públicos de Monad limitan `eth_getLogs` a **100 bloques** (la cadena produce ~217.000 por día), así que un cliente no puede reconstruir el estado de un usuario leyendo eventos. Con los listados, todo se recupera solo desde la cadena y desde cualquier RPC, sin indexador: es lo que permite que la app se reconstruya por completo desde la passkey. Las páginas son seguras en los bordes (offset pasado el final, límite enorme).
 
 ### `ReputationReader`
@@ -71,7 +74,8 @@ Detalles:
 - El pago cuenta si fue a la billetera registrada del agente (`getAgentWallet` del Identity Registry).
 - El Reputation Registry de Monad testnet **revierte si la lista de clientes está vacía**; el lector devuelve cero en ese caso.
 - ERC-8004 devuelve el **promedio truncado** a los decimales de las reseñas: conviene reseñar en escala 0–100 en vez de -1/1.
-- Considera como máximo 200 pagadores; para más, el indexador calcula el puntaje completo.
+- Considera como máximo 200 pagadores (los primeros 200): con más, las reseñas de clientes posteriores no cuentan. El indexador está pensado para calcular el puntaje completo, pero hoy no está desplegado.
+- Con `minPaid = 0` cualquier cuenta que haya pagado 0 cuenta como cliente; el SDK usa 1 tUSD por defecto. En testnet pagar es gratis (el faucet de tUSD es público).
 - Limitación conocida: un agente podría pagarse desde cuentas propias. `minPaid` encarece ese fraude, pero no lo elimina.
 
 Registros ERC-8004 en Monad testnet: Identity `0x8004A818BFB912233c491871b3d84c89A494BD9e`, Reputation `0x8004B663056A597Dffe9eCcC1965A193B7388713`.
@@ -80,13 +84,19 @@ Registros ERC-8004 en Monad testnet: Identity `0x8004A818BFB912233c491871b3d84c8
 
 ### `MemoryVault`
 
-Almacenamiento remoto **no confiable** para la memoria cifrada del usuario y sus agentes. Solo guarda bytes que ya llegan cifrados desde el dispositivo (AES-GCM con claves derivadas de la passkey): el contrato, el relayer y cualquiera que lea la cadena ven ruido. La misma passkey en otro dispositivo encuentra los datos y los descifra.
+Almacenamiento remoto **no confiable** para la memoria cifrada del usuario y sus agentes. Solo guarda bytes que ya llegan cifrados desde el dispositivo (AES-GCM con claves derivadas de la passkey): el contrato, el relayer y cualquiera que lea la cadena ven ruido. La misma passkey en otro dispositivo debería encontrar los datos y descifrarlos (la prueba con una passkey real en dos dispositivos está pendiente).
 
 - `store(slot, data)`: guarda (o borra, con `data` vacío) un casillero propio. Máximo 4 KB.
 - `storeFor(owner, slot, data, deadline, signature)`: lo mismo con una firma EIP-712 del dueño sobre el hash exacto de los datos, para que un relayer pague el gas (nonce contra repeticiones y fecha límite).
 - `get(owner, slot)`: los bytes cifrados de un casillero.
 
 Casilleros que usa Aval: uno privado (`keccak256("aval/memory/private")`) y uno por agente con el que el usuario comparte (`keccak256("aval/memory/agent/<dirección>")`). Se despliega con `script/DeployMemory.s.sol`.
+
+### `AvalRiskGuard`
+
+Recibe alertas de riesgo de un vigilante de Chainlink CRE (ver [`cre/`](../cre/README.md)) a través del forwarder, y guarda un nivel por agente (0 sin alerta, 1 vigilar, 2 bloquear). **Solo restringe**: no mueve fondos ni da permisos. Los reportes más viejos que el último guardado se descartan. Consultas: `isBlocked(agent)` y `alertOf(agent)`.
+
+**Estado:** el desplegado usa el forwarder de **simulación** de CRE, que no verifica firmas: cualquiera puede entregarle un reporte falso, y `expectedWorkflowOwner` (hoy en cero) viaja dentro del propio reporte, así que no protege. Por eso el relayer de producción no lo consulta. Para producción hay que desplegarlo con el forwarder de producción y fijar el dueño del workflow. Se despliega con `script/DeployRiskGuard.s.sol`.
 
 ### `TestUSD`
 
