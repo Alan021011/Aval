@@ -8,9 +8,9 @@ Un workflow de **Chainlink Runtime Environment (CRE)** que hace de **capa de orq
    - **pagos divididos:** dos o más pagos del mismo permiso al mismo destinatario en 10 minutos que juntos superan el máximo por pago (lo que hizo un agente real con Qwen al toparse con el límite: partir 150 en 50 + 100) → nivel 2, **bloquear**;
    - **ráfaga:** tres o más pagos del mismo permiso en 10 minutos → nivel 1, **vigilar**.
 4. **LLM:** **Qwen 3.8 Max** redacta la alerta en lenguaje claro (HTTP capability; los nodos comparten la respuesta en caché para llegar a consenso). Si Qwen falla, queda la explicación determinista: la decisión nunca depende del LLM.
-5. **Escritura:** un **reporte firmado por la red de Chainlink** llega, a través del forwarder, a [`AvalRiskGuard`](../contracts/src/AvalRiskGuard.sol) en Monad.
+5. **Escritura:** un **reporte** llega, a través del forwarder, a [`AvalRiskGuard`](../contracts/src/AvalRiskGuard.sol) en Monad.
 
-El **agente de demostración respeta la alerta**: si está marcado para bloquear, no paga ni pide pagos (`AgentBlockedByGuard`). El vigilante **solo restringe**: no mueve fondos ni da permisos.
+El **relayer puede respetar la alerta** (si se activa `RISK_GUARD_ADDRESS`, apagado en la demo): un agente marcado para bloquear no paga ni pide pagos (`AgentBlockedByGuard`). El vigilante **solo restringe**: no mueve fondos ni da permisos.
 
 ## Despliegue y prueba en Monad testnet
 

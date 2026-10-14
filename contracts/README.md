@@ -61,7 +61,7 @@ Cada permiso (`Terms`) fija: agente, ID en ERC-8004, token, máximo por gasto, t
 
 ### `ReputationReader`
 
-Reputación verificada de agentes ERC-8004: resume solo las reseñas de cuentas que de verdad le pagaron al agente a través de `AgentPermit`. Cualquiera puede reseñar en ERC-8004; este lector ignora a quien no tiene recibo.
+Reputación verificada de agentes ERC-8004: resume solo las reseñas de cuentas con recibo de pago al agente a través de `AgentPermit` (pago mínimo configurable por quien consulta). Cualquiera puede reseñar en ERC-8004; este lector ignora a quien no tiene recibo.
 
 - `verifiedSummary(agentId, tag1, tag2, minPaid)`: devuelve `count`, `value` y `decimals` (el promedio que calcula ERC-8004) y cuántos clientes verificados entraron. `minPaid` exige un pago mínimo para contar.
 - `verifiedClients(agentId, minPaid)`: las cuentas que cuentan.

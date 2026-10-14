@@ -107,13 +107,14 @@ export function ReputationCard({ app, compact }: { app: App; compact?: boolean }
       </div>
       {!compact ? (
         <p className="mt-4 text-sm leading-relaxed text-ink-2">
-          Cualquiera puede escribir una reseña en ERC-8004, incluso con cuentas falsas. Aquí solo cuentan las de quienes <strong className="text-ink">de verdad le pagaron</strong> al
-          servicio: cada pago deja un recibo en la cadena.
+          Cualquiera puede escribir una reseña en ERC-8004, incluso con cuentas falsas. Aquí solo cuentan las de cuentas con un{' '}
+          <strong className="text-ink">recibo de pago</strong> on-chain. En testnet el dinero es de prueba: esto demuestra el
+          mecanismo, no resistencia a fraude.
         </p>
       ) : null}
       <p className="mt-4 flex items-center gap-2 rounded-xl bg-surface-low px-3 py-2 text-[13px] text-ink-2">
         <Icon name="verified" size={18} className="text-ok" />
-        Solo cuentan clientes con un recibo de pago en AgentPermit
+        Solo cuentan cuentas con un recibo de pago en AgentPermit
       </p>
     </Card>
   );

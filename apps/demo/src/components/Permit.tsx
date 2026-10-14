@@ -227,7 +227,7 @@ function AgentPanel({ app }: { app: App }) {
       icon: 'star',
       tint: 'bg-primary-soft text-on-primary-soft',
       title: 'Reseñar al servicio · 90/100',
-      detail: app.snapshot!.receipts.length === 0 ? 'Primero tu agente tiene que pagarle: solo cuentan las reseñas de clientes que pagaron.' : 'Cuenta en su reputación porque tu agente ya le pagó.',
+      detail: app.snapshot!.receipts.length === 0 ? 'Primero tu agente tiene que pagarle: solo cuentan las reseñas de cuentas con un recibo de pago.' : 'Cuenta en su reputación porque tu agente ya le pagó.',
       badge: { tone: 'accent', icon: 'verified', text: 'ERC-8004' },
       button: 'Que reseñe',
       busy: 'review-90',
